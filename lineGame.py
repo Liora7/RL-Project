@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 
 
 
-def getBoards(d):
+def getBoards(d, n):
 # =============================================================================
-# 	Returns a list of boards with d blanks (distance d from a full board)
+# 	Returns a list of boards with distance d from a finished game)
 #This is useful because we must calculate Richman and discrete-Richman
 # 	values backwards-recursively (that is, the Richman value of any state
 # 	is determined by the Richman values of its child states). With the
@@ -19,21 +19,11 @@ def getBoards(d):
 #   terminal nodes (that is, all states in distance0), then for all states
 #   in distance1, then in distance2, and so on.
 # =============================================================================
-    if d == 9:
-        return [Board()]
-    
-    boards = []
-    for i in range(3**9):
-        c = i
-        b = ""
-        for j in range(9):
-            b += str(c % 3)
-            c //= 3
-        if (b.count("0") == d): # and abs(b.count("1")-b.count("2"))<2):
-            boards.append(Board(b))
-
-    return boards
-
+    b1 = Board(n)
+    b1.token = 1+d
+    b2 = Board(n)
+    b2.token = n-d
+    return [b1, b2]
 
 
 class ActionI:
@@ -89,144 +79,75 @@ class BoardI:
 class Board(BoardI):
         
 
-    def __init__(self, config="000000000"):
-        positions = np.array(list(map(int,config)))
-        positions = np.where(positions==2, -1, positions) 
-        self.board = np.reshape(positions, (3, 3))
-        
-    def fromArray(self, arr):
-        self.board = arr
+    def __init__(self, n):
+        self.token = math.floor(n/2) + 1
+        self.length = n
         
     # get unique hash of current board state
     def getHash(self):
-        return hash(str(self.board))
+        return hash(str(self.token)+str(self.length))
     
     def winner(self):
-        # row
-        for i in range(3):
-            if sum(self.board[i, :]) == 3:
-                self.isEnd = True
-                return 1
-            if sum(self.board[i, :]) == -3:
-                self.isEnd = True
-                return -1
-        # col
-        for i in range(3):
-            if sum(self.board[:, i]) == 3:
-                self.isEnd = True
-                return 1
-            if sum(self.board[:, i]) == -3:
-                self.isEnd = True
-                return -1
-        # diagonal
-        diag_sum1 = sum([self.board[i, i] for i in range(3)])
-        diag_sum2 = sum([self.board[i, 3 - i - 1] for i in range(3)])
-        diag_sum = max(abs(diag_sum1), abs(diag_sum2))
-        if diag_sum == 3:
-            self.isEnd = True
-            if diag_sum1 == 3 or diag_sum2 == 3:
-                return 1
-            else:
-                return -1
-
-        # tie
-        # no available positions
-        if len(self.availableActions()) == 0:
-            self.isEnd = True
-            return 0
-        # not end
-        self.isEnd = False
+        if self.token == 1:     #token on left end
+            return -1
+        elif self.token == self.length:        #token on right end
+            return 1
+        # else game not ended yet
         return None
     
-    def numBlanks(self):
-        return np.count_nonzero(self.board==0)
-    
-    def availableActions(self):
-        positions = []
-        for i in range(3):
-            for j in range(3):
-                if self.board[i, j] == 0:
-                    positions.append((i, j))  # need to be tuple
-        return positions
+    def distance(self, symbol):
+        if symbol == 1:
+            return (self.length - self.token)
+        else:
+            return self.token
     
     def getBoard(self):
-        return np.copy(self.board)
+        return (self.token, self.length)
     
     def copy(self):
-        copy = Board()
-        copy.fromArray(self.getBoard())
+        copy = Board(self.length)
+        copy.token = self.token
         return copy
     
     def nextBoards(self, symbol):
         if (self.winner() is not None):
             return []
-        children = []
-        for row,col in self.availableActions():
-            child = self.getBoard()
-            child[row, col] = symbol
-            b = Board()
-            b.fromArray(child)
-            children.append(b) 
-            #child[row, col] = 0
-        return children
-    
-    def generateMove(self, nextBoard):
-        nextB = nextBoard.getBoard()
-        for row in range(3):
-            for col in range(3):
-                if self.board[row, col] != nextB[row, col]: 
-                    return row,col
-        return 0,0
+        c = self.copy()
+        c.token += symbol
+        return [c]
 
-    def updateState(self, position, symbol):
-        self.board[position] = symbol
+    def updateState(self, symbol):
+        self.token += symbol
         
     def showBoard(self):
-        # p1: x  p2: o
-        for i in range(0, 3):
-            print('-------------')
-            out = '| '
-            for j in range(0, 3):
-                if self.board[i, j] == 1:
-                    token = 'x'
-                if self.board[i, j] == -1:
-                    token = 'o'
-                if self.board[i, j] == 0:
-                    token = ' '
-                out += token + ' | '
-            print(out)
-        print('-------------')
+        # token: x  empty: o
+        for i in range(1, self.token):
+            print('-', end="")
+        print("x", end="")
+        for i in range(self.token + 1, self.length + 1):
+            print('-', end="")
     
-    def standardString(self, symbol):
-        positions = self.board.flatten()
-        for i in range(len(positions)):
-            char = positions[i]
-            if char==symbol:
-                positions[i] = 1
-            elif char==-1*symbol:
-                positions[i] = 2
-        positions = list(map(str, positions))
-        return(('').join(positions))
+    def standardString(self):
+        return str(self.token)
     
     def __eq__(self, other):
         if not isinstance(other, Board):
             return False
-
-        return np.array_equal(self.board, other.board)
+        return (self.token==other.token and self.length==other.length)
 
 
 
 class State(StateI):
 
-    def __init__(self, p1, p2, totalChips):
-        self.board = Board()
+    def __init__(self, n, p1, p2, totalChips):
+        self.board = Board(n)
         self.p1 = p1
         self.p2 = p2
         self.isEnd = False
         self.boardHash = None
         # init p1 plays first
         self.playerSymbol = 1
-        agentChips = math.ceil(0.51953126*totalChips)
+        agentChips = math.ceil(0.5*totalChips)
         #agentChips =  math.ceil(0.5*totalChips)
         self.chips = [totalChips, agentChips, totalChips-agentChips]
         self.tieBreaker = 1
@@ -234,7 +155,7 @@ class State(StateI):
     def copy(self):
         p1 = self.p1
         p2 = self.p2
-        copy = State(p1, p2, self.chips[0])
+        copy = State(n, p1, p2, self.chips[0])
         copy.chips = [self.chips[0], self.chips[1], self.chips[2]]
         copy.playerSymbol = self.playerSymbol
         copy.isEnd = self.isEnd
@@ -264,11 +185,11 @@ class State(StateI):
 
     # board reset
     def reset(self):
-        self.board = Board()
+        self.board = Board(self.board.length)
         self.boardHash = None
         self.isEnd = False
         self.playerSymbol = 1
-        agentChips = math.ceil(0.51953126*self.chips[0])
+        agentChips = math.ceil(0.5*self.chips[0])
         self.chips = [self.chips[0], agentChips, self.chips[0]-agentChips]
         
     def bid(self): 
@@ -318,25 +239,20 @@ class State(StateI):
 #                 return -1
 # =============================================================================
             
-    def updateState(self, position):
-        self.board.updateState(position, self.playerSymbol)
-        # switch to another player
-        # self.playerSymbol = -1 if self.playerSymbol == 1 else 1
             
 
 
 class Player(AgentI):
-    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, exp_rate=0.4):
+    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, n, exp_rate=0.8):
         self.name = name
         self.states = []  # record all positions taken
         self.bids = []  # record all bids taken
         self.lr = 0.2
         self.exp_rate = exp_rate
-        self.decay_gamma = 0.95
+        self.decay_gamma = 0.9
         self.states_value = {}  # state -> value
         self.biddingStrategy = biddingStrategy
         self.symbol = symbol
-        self.next_action = None
         self.data = {}
         self.totalChips = totalChips
         self.prob = prob
@@ -350,7 +266,7 @@ class Player(AgentI):
 		# full state, such that nodesToDiscreteRich[k] carries all
 		# entries with node-keys that are k steps away from a full
 		# state.
-        self.nodesToDiscreteRich = [{},{},{},{},{},{},{},{},{},{}]
+        self.nodesToDiscreteRich = []
 
 		# nodesToMoveBid is a list of dictionaries that hold
 		# entries of the form
@@ -358,225 +274,12 @@ class Player(AgentI):
 		#
 		# where optimalMove is of the form (row, col). The nodes 
 		# are partitioned by their distance away from a full state
-        self.nodesToMoveBid = [{},{},{},{},{},{},{},{},{},{}]
+        self.nodesToMoveBid = []
 
-        if biddingStrategy == "optimal" or biddingStrategy == "optimalExp":
+        if biddingStrategy == "optimal":
             self.generateStrategy(totalChips)
-
-    def getHash(self, board):
-        boardHash = str(board.reshape(3,3)) # + str(board.chipsP1) + str(board.chipsP2)
-        return boardHash
-    
-    def randomBid(self, availableTokens, tieBreaker, symbol):
-        tb = 0
-        if (tieBreaker==symbol):  #have tiebreaker
-            if np.random.uniform(0, 1) <= 0.5:
-                tb = 1
-        return random.randint(0, availableTokens) + 0.25*tb
-    
-    def randomBidAndAction(self, availableTokens, tieBreaker, symbol, positions):
-        tb = 0
-        if (tieBreaker==symbol):  #have tiebreaker
-            if np.random.uniform(0, 1) <= 0.5:
-                tb = 1
-        idx = np.random.choice(len(positions))
-        action = positions[idx]
-        return (random.randint(0, availableTokens) + 0.25*tb, action)
-    
-    def getProb(self, stateHash, b):
-        (bidsWon, bidsNum) = self.stateProbs.get((stateHash, b, 1), (0,1))
-        return (bidsWon + 0) / (bidsNum + 0)
-    
-    def addStateBidProb(self, state, bid, win, tb):
-        (won, num) = self.stateProbs.get((state, bid, tb), (0,0))
-        self.stateProbs[state, bid, tb] = (won+win, num+1)
-    
-    def stateValBid(self, prob, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
-        for b in range(int(availableTokens) + 1):
-            if (tieBreaker==symbol):  #have tiebreaker
-                next_state = state.copy()
-                next_state.tieBreaker *= -1
-                if not pos is None:
-                    next_state.board.board[pos] = symbol
-                next_stateHash = next_state.getHash()
-                value = self.states_value.get((next_stateHash), 0)
-                if prob:
-                    bidWinProb = self.getProb(state.getHash(), b)
-                    value *= bidWinProb
-                if value >= value_max:
-                    value_max = value
-                    bid = b
-                    tb = 1
-                    action = pos
-            next_state = state.copy()
-            next_state.chips[pId] -= 1
-            next_state.chips[oId] += 1
-            if not pos is None:
-                next_state.board.board[pos] = symbol
-            next_stateHash = next_state.getHash()
-            value = self.states_value.get((next_stateHash), 0)
-            if prob:
-                bidWinProb = self.getProb(state.getHash(), b)
-                value *= bidWinProb
-            if value >= value_max:
-                value_max = value
-                bid = b
-                tb = 0
-                action = pos
-        return (action, bid, tb)
-    
-    def actionValBid(self, prob, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
-        for b in range(int(availableTokens) + 1):
-            if (tieBreaker==symbol):  #have tiebreaker
-                next_state = state.copy()
-                next_state.tieBreaker *= -1
-                if not pos is None:
-                    next_state.board.board[pos] = symbol
-                next_stateHash = next_state.getHash()
-                value = self.states_value.get((next_stateHash, b), 0)
-                if prob:
-                    bidWinProb = self.getProb(state.getHash(), b)
-                    value *= bidWinProb
-                if value >= value_max:
-                    value_max = value
-                    bid = b
-                    tb = 1
-                    action = pos
-            next_state = state.copy()
-            next_state.chips[pId] -= 1
-            next_state.chips[oId] += 1
-            if not pos is None:
-                next_state.board.board[pos] = symbol
-            next_stateHash = next_state.getHash()
-            value = self.states_value.get((next_stateHash, b), 0)
-            if prob:
-                    bidWinProb = self.getProb(state.getHash(), b)
-                    value *= bidWinProb
-            if value >= value_max:
-                value_max = value
-                bid = b
-                tb = 0
-                action = pos
-        return (action, bid, tb)
-    
-    def getBid(self, state, pId, oId, availableTokens):
-        prob = self.prob
-        if (self.biddingStrategy == "random"):
-            # do random bid
-            return self.randomBid(availableTokens, state.tieBreaker, self.symbol)
-        elif (self.biddingStrategy == "state-value1" or self.biddingStrategy == "TD"):
-            positions = state.board.availableActions()
-            if np.random.uniform(0, 1) <= self.exp_rate:
-                # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
-                self.next_action = action
-                return bid
-            else:
-                # do greedy bid
-                value_max = -999
-                bid = 0
-                tb = 0
-                for pos in positions:
-                    (action, bid, tb) = self.stateValBid(prob, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
-                self.next_action = action
-                self.data[(state.board.standardString(self.symbol), tb)] = bid
-                self.addBid(bid)
-                return (bid + tb*0.25)
-        elif (self.biddingStrategy == "state-value2"):
-            positions = state.board.availableActions()
-            if np.random.uniform(0, 1) <= self.exp_rate:
-                # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
-                self.next_action = action
-                return bid
-            else:
-                # do greedy bid
-                value_max = -999
-                bid = 0
-                tb = 0
-                (action, bid, tb) = self.stateValBid(prob, value_max, bid, tb, None, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
-                self.data[(state.board.standardString(self.symbol), tb)] = bid
-                self.addBid(bid)
-                return (bid + tb*0.25)
-        elif (self.biddingStrategy == "action-value1"):
-            positions = state.board.availableActions()
-            if np.random.uniform(0, 1) <= self.exp_rate:
-                # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
-                self.next_action = action
-                return bid
-            else:
-                # do greedy bid
-                value_max = -999
-                bid = 0
-                tb = 0
-                for pos in positions:
-                    (action, bid, tb) = self.actionValBid(prob, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
-                self.next_action = action
-                self.data[(state.board.standardString(self.symbol), tb)] = bid
-                return (bid + tb*0.25)
-        elif (self.biddingStrategy == "action-value2"):
-            positions = state.board.availableActions()
-            if np.random.uniform(0, 1) <= self.exp_rate:
-                # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
-                self.next_action = action
-                return bid
-            else:
-                # do greedy bid
-                value_max = -999
-                bid = 0
-                tb = 0
-                stateHash = state.getHash()
-                # no afterstates
-                for b in range(int(availableTokens) + 1):
-                    if (state.tieBreaker==self.symbol):  #have tiebreaker
-                        value = self.states_value.get((stateHash), 0)
-                        if prob:
-                            bidWinProb = self.getProb(state.getHash(), b)
-                            value *= bidWinProb
-                        if value >= value_max:
-                            value_max = value
-                            bid = b
-                            tb = 1
-                    value = self.states_value.get((stateHash), 0)
-                    if prob:
-                        bidWinProb = self.getProb(state.getHash(), b)
-                        value *= bidWinProb
-                    if value >= value_max:
-                        value_max = value
-                        bid = b
-                        tb = 0
-                self.data[(state.board.standardString(self.symbol), tb)] = bid
-                return (bid + tb*0.25)
-        elif (self.biddingStrategy == "optimal"):
-            numBlanks = state.board.numBlanks()
-            move, bid = self.nodesToMoveBid[numBlanks][state.board.getHash()]
-            self.next_action = move
-            tb = 0
-            if state.tieBreaker==self.symbol and bid % 1 == 0.25:
-                tb = 1
-            self.data[(state.board.standardString(self.symbol), tb)] = bid
-            return round(bid)
-        elif (self.biddingStrategy == "optimalExp"):
-            positions = state.board.availableActions()
-            if np.random.uniform(0, 1) <= self.exp_rate:
-                # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
-                self.next_action = action
-                return bid
-            else:
-                # do greedy bid
-                numBlanks = state.board.numBlanks()
-                move, bid = self.nodesToMoveBid[numBlanks][state.board.getHash()]
-                tb = 0
-                self.next_action = move
-                if state.tieBreaker==self.symbol and bid % 1 == 0.25:
-                    tb = 1
-                self.data[(state.board.standardString(self.symbol), tb)] = bid
-                return round(bid)
-                    
-
+            
+            
     def generateStrategy(self, totalChips):
 
 # =============================================================================
@@ -598,12 +301,19 @@ class Player(AgentI):
 # 		for more details.
 # =============================================================================
 
-        boards0 = getBoards(0)
-        for board in boards0:
-            if board.winner()==self.symbol:
-                self.nodesToDiscreteRich[0][board.getHash()] = 0.0
-            else:
-                self.nodesToDiscreteRich[0][board.getHash()] = totalChips + 1.0        
+#        boards0 = getBoards(0, n)
+#        for board in boards0:
+#            if board.winner()==self.symbol:
+#                self.nodesToDiscreteRich[0][board.getHash()] = 0.0
+#            else:
+#                self.nodesToDiscreteRich[0][board.getHash()] = totalChips + 1.0        
+#                
+#        boards0 = getBoards(math.floor(n/2), n)
+#        for board in boards0:
+#            if board.winner()==self.symbol:
+#                self.nodesToDiscreteRich[0][board.getHash()] = 0.0
+#            else:
+#                self.nodesToDiscreteRich[0][board.getHash()] = totalChips + 1.0        
 
 
 # =============================================================================
@@ -617,9 +327,11 @@ class Player(AgentI):
 # 		below should suffice.
 # =============================================================================
 				
-        for i in range(1,10):
+        for i in range(0,n):
+            self.nodesToDiscreteRich.append({})
+            self.nodesToMoveBid.append({})
 			# Get all nodes that are i steps away from a full state
-            nodes = getBoards(i)
+            nodes = getBoards(i, n)
 
             for node in nodes:
 
@@ -633,25 +345,34 @@ class Player(AgentI):
                 elif node.winner()==(-1*self.symbol):
                     self.nodesToDiscreteRich[i][node.getHash()] = totalChips + 1.0
                     continue
-
 				# For the current node, find the minimum discrete-Richman
 				# value of its children that the agent can move to, and the
 				# maximum discrete-Richman value of its children that the
 				# opponent can move to.  As well, store the child node that
 				# corresponds to the minimum discrete-Richman value, so that
 				# we can determine the optimal move.
-				
+
+        for i in range(0,n):
+            # Get all nodes that are i steps away from a full state
+            nodes = getBoards(i, n)
+
+            for node in nodes:
                 Fmax = -1.0
                 Fmin = sys.maxsize
                 myChildren = node.nextBoards(self.symbol)
                 oppChildren = node.nextBoards(-1*self.symbol)                
                 for myChild in myChildren:
-                    if Fmin > self.nodesToDiscreteRich[i-1][myChild.getHash()]:
+                    if not(self.nodesToDiscreteRich[i-1].get(myChild.getHash()) == None) and Fmin > self.nodesToDiscreteRich[i-1][myChild.getHash()]:
                         Fmin = self.nodesToDiscreteRich[i-1][myChild.getHash()]
-                        favoredChild = myChild
+                    elif not(self.nodesToDiscreteRich[i+1].get(myChild.getHash()) == None) and Fmin > self.nodesToDiscreteRich[i+1][myChild.getHash()]:
+                        Fmin = self.nodesToDiscreteRich[i+1][myChild.getHash()]
 
                 for oppChild in oppChildren:
-                    Fmax = max(Fmax,self.nodesToDiscreteRich[i-1][oppChild.getHash()])
+                    if not(self.nodesToDiscreteRich[i-1].get(oppChild.getHash()) == None):
+                        oC = self.nodesToDiscreteRich[i-1].get(oppChild.getHash())
+                    elif not(self.nodesToDiscreteRich[i+1].get(oppChild.getHash()) == None):
+                        oC = self.nodesToDiscreteRich[i+1].get(oppChild.getHash())
+                    Fmax = max(Fmax,oC)
 
 				# Discrete-Richman values may or may not include the tie-breaking
 				# chip *.  Conveniently, as the value of * is strictly positive but
@@ -696,26 +417,189 @@ class Player(AgentI):
                     bid = abs(FmaxVal-FminVal)/2.0
                 
                 self.nodesToDiscreteRich[i][node.getHash()] = math.floor(Fsum/2.0) + epsilon
-                self.nodesToMoveBid[i][node.getHash()] = (node.generateMove(favoredChild), bid)         
+                self.nodesToMoveBid[i][node.getHash()] = bid   
     
     
 
-    def chooseAction(self, positions, current_state):
-        if (self.next_action == None):
-            value_max = -999
-            for p in positions:
-                next_state = current_state.copy()
-                next_state.playerSymbol = self.symbol
-                next_state.board.board[p] = self.symbol
+
+
+    def randomBid(self, availableTokens, tieBreaker, symbol):
+        tb = 0
+        if (tieBreaker==symbol):  #have tiebreaker
+            if np.random.uniform(0, 1) <= 0.5:
+                tb = 1
+        return random.randint(0, availableTokens) + 0.25*tb
+    
+    def getProb(self, stateHash, b):
+        (bidsWon, bidsNum) = self.stateProbs.get((stateHash, b, 1), (0,1))
+        return (bidsWon + 0) / (bidsNum + 0)
+    
+    def addStateBidProb(self, state, bid, win, tb):
+        (won, num) = self.stateProbs.get((state, bid, tb), (0,0))
+        self.stateProbs[state, bid, tb] = (won+win, num+1)
+    
+    def stateValBid(self, prob, pId, oId, availableTokens, tieBreaker, symbol, state):
+        bid = 0
+        tb = 0
+        value_max = -999
+        for b in range(int(availableTokens) + 1):
+            if (tieBreaker==symbol):  #have tiebreaker
+                next_state = state.copy()
+                next_state.tieBreaker *= -1
+                next_state.board.updateState(symbol)
                 next_stateHash = next_state.getHash()
-                value = 0 if self.states_value.get(next_stateHash) is None else self.states_value.get(next_stateHash)
+                value = self.states_value.get((next_stateHash), 0)
+                if prob:
+                    bidWinProb = self.getProb(state.getHash(), b)
+                    value *= bidWinProb
                 if value >= value_max:
                     value_max = value
-                    action = p
-            return action
-        else:
-            return self.next_action
-        
+                    bid = b
+                    tb = 1
+            next_state = state.copy()
+            next_state.chips[pId] -= 1
+            next_state.chips[oId] += 1
+            next_state.board.updateState(symbol)
+            next_stateHash = next_state.getHash()
+            value = self.states_value.get((next_stateHash), 0)
+            if prob:
+                bidWinProb = self.getProb(state.getHash(), b)
+                value *= bidWinProb
+            if value >= value_max:
+                value_max = value
+                bid = b
+                tb = 0
+        return (bid, tb)
+    
+    def actionValBid(self, prob, pId, oId, availableTokens, tieBreaker, symbol, state):
+        bid = 0
+        tb = 0
+        value_max = -999
+        for b in range(int(availableTokens) + 1):
+            if (tieBreaker==symbol):  #have tiebreaker
+                next_state = state.copy()
+                next_state.tieBreaker *= -1
+                next_state.board.updateState(symbol)
+                next_stateHash = next_state.getHash()
+                value = self.states_value.get((next_stateHash, b), 0)
+                if prob:
+                    bidWinProb = self.getProb(state.getHash(), b)
+                    value *= bidWinProb
+                if value >= value_max:
+                    value_max = value
+                    bid = b
+                    tb = 1
+            next_state = state.copy()
+            next_state.chips[pId] -= 1
+            next_state.chips[oId] += 1
+            next_state.board.updateState(symbol)
+            next_stateHash = next_state.getHash()
+            if prob:
+                    bidWinProb = self.getProb(state.getHash(), b)
+                    value *= bidWinProb
+            value = self.states_value.get((next_stateHash, b), 0)
+            if value >= value_max:
+                value_max = value
+                bid = b
+                tb = 0
+        return (bid, tb)
+    
+    def getBid(self, state, pId, oId, availableTokens):
+        prob = self.prob
+        if (self.biddingStrategy == "random"):
+            # do random bid
+            return self.randomBid(availableTokens, state.tieBreaker, self.symbol)
+        elif (self.biddingStrategy == "state-value1" or self.biddingStrategy == "TD"):
+            if np.random.uniform(0, 1) <= self.exp_rate:
+                # do random bid
+                return self.randomBid(availableTokens, state.tieBreaker, self.symbol)
+            else:
+                # do greedy bid
+                (bid, tb) = self.stateValBid(prob, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
+                self.data[(state.board.standardString(), tb)] = bid
+                self.addBid(bid)
+                return (bid + tb*0.25)
+        elif (self.biddingStrategy == "state-value2"):
+            if np.random.uniform(0, 1) <= self.exp_rate:
+                # do random bid
+                return self.randomBid(availableTokens, state.tieBreaker, self.symbol)
+            else:
+                # do greedy bid
+                value_max = -999
+                bid = 0
+                tb = 0
+                stateHash = state.getHash()
+                # no afterstates
+                for b in range(int(availableTokens) + 1):
+                    if (state.tieBreaker==self.symbol):  #have tiebreaker
+                        value = self.states_value.get((stateHash), 0)
+                        if prob:
+                            bidWinProb = self.getProb(state.getHash(), b)
+                            value *= bidWinProb
+                        if value >= value_max:
+                            value_max = value
+                            bid = b
+                            tb = 1
+                    value = self.states_value.get((stateHash), 0)
+                    if prob:
+                        bidWinProb = self.getProb(state.getHash(), b)
+                        value *= bidWinProb
+                    if value >= value_max:
+                        value_max = value
+                        bid = b
+                        tb = 0
+                self.data[(state.board.standardString(), tb)] = bid
+                return (bid + tb*0.25)
+        elif (self.biddingStrategy == "action-value1"):
+            if np.random.uniform(0, 1) <= self.exp_rate:
+                # do random bid
+                return self.randomBid(availableTokens, state.tieBreaker, self.symbol)
+
+            else:
+                # do greedy bid
+                (bid, tb) = self.stateValBid(prob, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
+                self.data[(state.board.standardString(), tb)] = bid
+                return (bid + tb*0.25)
+        elif (self.biddingStrategy == "action-value2"):
+            if np.random.uniform(0, 1) <= self.exp_rate:
+                # do random bid
+                return self.randomBid(availableTokens, state.tieBreaker, self.symbol)
+            else:
+                # do greedy bid
+                value_max = -999
+                bid = 0
+                tb = 0
+                stateHash = state.getHash()
+                # no afterstates
+                for b in range(int(availableTokens) + 1):
+                    if (state.tieBreaker==self.symbol):  #have tiebreaker
+                        value = self.states_value.get((stateHash), 0)
+                        if prob:
+                            bidWinProb = self.getProb(state.getHash(), b)
+                            value *= bidWinProb
+                        if value >= value_max:
+                            value_max = value
+                            bid = b
+                            tb = 1
+                    value = self.states_value.get((stateHash), 0)
+                    if prob:
+                        bidWinProb = self.getProb(state.getHash(), b)
+                        value *= bidWinProb
+                    if value >= value_max:
+                        value_max = value
+                        bid = b
+                        tb = 0
+                self.data[(state.board.standardString(), tb)] = bid
+                return (bid + tb*0.25)
+        elif (self.biddingStrategy == "optimal"):
+            numBlanks = state.board.distance(self.symbol)
+            bid = self.nodesToMoveBid[numBlanks][state.board.getHash()]
+            tb = 0
+            if state.tieBreaker==self.symbol and bid % 1 == 0.25:
+                tb = 1
+            self.data[(state.board.standardString(), tb)] = bid
+            return round(bid)
+                    
         
     # append a hash state
     def addState(self, state):
@@ -795,12 +679,7 @@ class HumanPlayer(AgentI):
                 print("You do not have enough tokens.")
 
     def chooseAction(self, positions, current_state):
-        while True:
-            row = int(input("Input your action row:"))
-            col = int(input("Input your action col:"))
-            action = (row, col)
-            if action in positions:
-                return action
+        pass
 
     # append a hash state
     def addState(self, state):
@@ -813,7 +692,7 @@ class HumanPlayer(AgentI):
     def reset(self):
         pass
     
-class BiddingTicTacToe(GameI):
+class BiddingLine(GameI):
     
     def __init__(self):
         self.dicts = []
@@ -834,10 +713,8 @@ class BiddingTicTacToe(GameI):
                 turn = state.bid()
                 if turn == 1:
                     # Player 1
-                    positions = state.board.availableActions()
-                    p1_action = state.p1.chooseAction(positions, state)
-                    # take action and upate board state
-                    state.updateState(p1_action)
+                    #upate board state
+                    state.board.updateState(state.p1.symbol)
                     
                     state.p1.update(old_state, state, state.p1.symbol)
                     state.p2.update(old_state, state, state.p2.symbol)
@@ -858,9 +735,7 @@ class BiddingTicTacToe(GameI):
     
                 else:
                     # Player 2
-                    positions = state.board.availableActions()
-                    p2_action = state.p2.chooseAction(positions, state)
-                    state.updateState(p2_action)
+                    state.board.updateState(state.p2.symbol)
                     
                     state.p1.update(old_state, state, state.p1.symbol)
                     state.p2.update(old_state, state, state.p2.symbol)
@@ -885,10 +760,7 @@ class BiddingTicTacToe(GameI):
             turn = state.bid()
             if turn == 1:
                 # Player 1
-                positions = state.board.availableActions()
-                p1_action = state.p1.chooseAction(positions, state)
-                # take action and upate board state
-                state.updateState(p1_action)
+                state.board.updateState(1)
                 print("Human: " + str(state.chips[2]) + "   Computer: " + str(state.chips[1]))
                 if (state.tieBreaker == 1):
                     print("Computer has the tiebreaker.")
@@ -907,10 +779,7 @@ class BiddingTicTacToe(GameI):
 
             else:
                 # Player 2
-                positions = state.board.availableActions()
-                p2_action = state.p2.chooseAction(positions, state)
-
-                state.updateState(p2_action)
+                state.board.updateState(-1)
                 print("Human: " + str(state.chips[2]) + "   Computer: " + str(state.chips[1]))
                 if (state.tieBreaker == 1):
                     print("Computer has the tiebreaker.")
@@ -931,88 +800,66 @@ def StateValue():
     # training
     biddingStrategy = "state-value1"
     chips = 8
+    n = 5
     prob = False
 
-    p1 = Player("p1", prob, biddingStrategy, 1, chips)
-    p2 = Player("p2", prob, biddingStrategy, -1, chips)
+    p1 = Player("p1", prob, biddingStrategy, 1, chips, n)
+    p2 = Player("p2", prob, biddingStrategy, -1, chips, n)
 
-    st = State(p1, p2, chips)
-    game = BiddingTicTacToe()
+    st = State(n, p1, p2, chips)
+    game = BiddingLine()
     print("training...")
     game.play(st, 50000)
 
     # play with human
-    p1 = Player("computer", prob, biddingStrategy, 1, chips, exp_rate=0)
+    p1 = Player("computer", prob, biddingStrategy, 1, chips, n, exp_rate=0)
     p1.loadPolicy("policy_p1")
 
     p2 = HumanPlayer("human")
 
-    st = State(p1, p2, chips)
+    st = State(n, p1, p2, chips)
     game.play2(st)
     
 def Optimal():
     # training
     biddingStrategy = "optimal"
     chips = 8
+    n = 5
     prob = False
 
-    game = BiddingTicTacToe()
+    game = BiddingLine()
     
     # play with human
-    p1 = Player("computer", prob, biddingStrategy, 1, chips, exp_rate=0)
+    p1 = Player("computer", prob, biddingStrategy, 1, chips, n, exp_rate=0)
     p2 = HumanPlayer("human")
 
-    st = State(p1, p2, chips)
+    st = State(n, p1, p2, chips)
     game.play2(st)
     
     
-def Plot(chips, prob, rlStrat, opt, optGame, rounds):
-    rl = Player("p1", prob, rlStrat, 1, chips)
+def Plot(n, chips, prob, rlStrat, opt, optGame, rounds):
+    rl = Player("p1", prob, rlStrat, 1, chips, n)
     
-    rlSt = State(rl, opt, chips)
-    rlGame = BiddingTicTacToe()
+    rlSt = State(n, rl, opt, chips)
+    rlGame = BiddingLine()
     print("training...")
     rlGame.play(rlSt, rounds)
     #PlotStrats(prob, rlStrat, rl, opt)
-    return PlotError2(prob, rlStrat, rlGame, opt)
+    return PlotError2(prob, rlStrat, rlGame, opt, n)
         
 
 def boardHeuristic(value):
      (key, bid) = value
-     (board, tb) = key
-     board = np.array(list(map(int,board)))
-     board = np.where(board==2, -1, board) 
-     board = np.reshape(board, (3, 3))
-     h = 0
-     for i in range(3):
-            if sum(board[i, :]) == 3 or sum(board[:, i]) == 3:
-                h += 100
-            if sum(board[i, :]) == 2 or sum(board[:, i]) == 2:
-                h += 10
-            if sum(board[i, :]) == 1 or sum(board[:, i]) == 1:
-                h += 1
-            if sum(board[i, :]) == -3 or sum(board[:, i]) == -3:
-                h += -100
-            if sum(board[i, :]) == -2 or sum(board[:, i]) == -2:
-                h += -10
-            if sum(board[i, :]) == -1 or sum(board[:, i]) == -1:
-                h += -1
-     diag_sum1 = sum([board[i, i] for i in range(3)])
-     diag_sum2 = sum([board[i, 3 - i - 1] for i in range(3)])
-     if diag_sum1 == 3 or diag_sum2 == 3:
-         h += 100
-     elif diag_sum1 == -3 or diag_sum2 == -3:
-         h += -100
-     return h
-     
+     (token, tb) = key
+     return int(token)
 
-def AverageError(chips, prob, rlStrat, trials, rounds):
-    opt = Player("p2", prob, "optimal", -1, chips)
-    optGame = BiddingTicTacToe()
+def AverageError(n, chips, prob, rlStrat, trials, rounds):
+    opt = Player("p2", prob, "optimal", 1, chips, n)
+    optGame = BiddingLine()
     
     errors = []
     for i in range(trials):
-        errors.append(Plot(chips, prob, rlStrat, opt, optGame, rounds))
+        errors.append(Plot(n, chips, prob, rlStrat, opt, optGame, rounds))
     print(sum(errors)/len(errors))
 
   
@@ -1046,7 +893,7 @@ def PlotError(prob, rlStrat, rlGame, optGame):
     return errors[-1]
 
 
-def PlotError2(prob, rlStrat, rlGame, opt):
+def PlotError2(prob, rlStrat, rlGame, opt, n):
     rlDicts = rlGame.dicts
     errors = []
     for i in range(len(rlDicts)):
@@ -1057,9 +904,10 @@ def PlotError2(prob, rlStrat, rlGame, opt):
         rDict = {key: rDict[key] for key in keys}
         (rKeys, rBids) = map(list, zip(*rDict.items()))
         for (boardStr, rlTb) in rKeys:
-            board = Board(boardStr)
-            numBlanks = board.numBlanks()
-            _, optBid = opt.nodesToMoveBid[numBlanks][board.getHash()]
+            board = Board(n)
+            board.token = int(boardStr)
+            numBlanks = board.distance(1)
+            optBid = opt.nodesToMoveBid[numBlanks][board.getHash()]
             #optTb = 0
             #if state.tieBreaker==self.symbol and optBid % 1 == 0.25:
             #    optTb = 1
@@ -1127,12 +975,15 @@ def PlotStrats(prob, rlStrat, rl, opt):
 if __name__ == "__main__":
     rlStrat = "state-value1"
     chips = 8
+    n = 5
     prob = True
-    #AverageError(chips, prob, "action-value1", 3, 40000)
+    
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
+    AverageError(n, chips, prob, rlStrat, 2, 30000)
+    
     for prob in [True, False]:
         for strat in ["state-value1", "state-value2", "action-value1", "action-value2", "TD"]:
-            AverageError(chips, prob, strat, 1, 4000)
+            AverageError(n, chips, prob, strat, 3, 4000)
 
