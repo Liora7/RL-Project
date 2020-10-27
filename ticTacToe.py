@@ -817,12 +817,15 @@ class BiddingTicTacToe(GameI):
     
     def __init__(self):
         self.dicts = []
+        self.p1Win = 0
+        self.wins = []
     
     def play(self, init_state, rounds=100):
         state = init_state
         for i in range(rounds):
             if i > 0 and i % 100 == 0:
                 self.dicts.append(state.p1.data.copy())
+                self.wins.append((self.p1Win)/i)
             if i % 1000 == 0:
                 state.p1.exp_rate *= state.p1.decay_gamma
                 state.p2.exp_rate *= state.p2.decay_gamma
@@ -850,6 +853,7 @@ class BiddingTicTacToe(GameI):
                     if win is not None:
                         # self.showBoard()
                         # ended with p1 either win or draw
+                        self.p1Win += 1
                         state.giveReward()
                         state.p1.reset()
                         state.p2.reset()
@@ -975,7 +979,37 @@ def Plot(chips, prob, rlStrat, opt, optGame, rounds):
     rlGame.play(rlSt, rounds)
     #PlotStrats(prob, rlStrat, rl, opt)
     return PlotError2(prob, rlStrat, rlGame, opt)
-        
+      
+def Wins(chips, prob, rlStrat, opt, optGame, rounds):
+    rl = Player("p1", prob, rlStrat, -1, chips)
+    
+    rlSt = State(rl, opt, chips)
+    rlGame = BiddingTicTacToe()
+    print("training...")
+    rlGame.play(rlSt, rounds)
+    #PlotStrats(prob, rlStrat, rl, opt)
+    return PlotWin(prob, rlStrat, rlGame, opt)
+
+def PlotWins(chips, prob, strat1, strat2, trials, rounds):
+    p2 = Player("p2", prob, strat2, 1, chips)
+    optGame = BiddingTicTacToe()
+    
+    wins = []
+    for i in range(trials):
+        wins.append(Wins(chips, prob, rlStrat, p2, optGame, rounds))
+    print(sum(wins)/len(wins))
+    
+def PlotWin(prob, rlStrat, rlGame, opt):
+    wins = rlGame.wins
+    
+    plt.scatter(range(len(wins)), wins)
+    # Add title and axis names
+    probStr = "Probability " if prob else ""
+    plt.title(probStr + rlStrat + " vs. Optimal Strategy")
+    plt.xlabel('Number of rounds trained (in 100s)')
+    plt.ylabel('Mean winning rate')
+    plt.show()
+    return wins[-1]
 
 def boardHeuristic(value):
      (key, bid) = value
@@ -1125,14 +1159,15 @@ def PlotStrats(prob, rlStrat, rl, opt):
 
 
 if __name__ == "__main__":
-    rlStrat = "state-value1"
+    rlStrat = "state-value2"
     chips = 8
     prob = True
     #AverageError(chips, prob, "action-value1", 3, 40000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
-    for prob in [True, False]:
-        for strat in ["state-value1", "state-value2", "action-value1", "action-value2", "TD"]:
-            AverageError(chips, prob, strat, 1, 4000)
+    PlotWins(chips, prob, rlStrat, "optimal", 1, 10000)
+    #for prob in [True]:
+    #   for strat in ["state-value1", "state-value2", "action-value1"]:
+    #        AverageError(chips, prob, strat, 3, 20000)
 
