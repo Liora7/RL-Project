@@ -278,17 +278,21 @@ class State(StateI):
         if p1Bid % 1 == 0.25:
             if self.tieBreaker == 1:
                 p1Bid = math.floor(p1Bid)
+                self.p1.addBid(p1Bid)
                 useTb = 1
             else:
                 if p1Bid < self.chips[1]:
                     p1Bid = math.ceil(p1Bid)
+                    self.p1.addBid(p1Bid)
         if p2Bid % 1 == 0.25:
             if self.tieBreaker == -1:
                 p2Bid = math.floor(p2Bid)
+                self.p2.addBid(p2Bid)
                 useTb = 1
             else:
                 if p2Bid < self.chips[2]:
                     p2Bid = math.ceil(p2Bid)
+                    self.p2.addBid(p2Bid)
         self.chips[1] = self.chips[1] - p1Bid  + p2Bid
         self.chips[2] = self.chips[2] - p2Bid + p1Bid
         if (p1Bid > p2Bid):
@@ -304,9 +308,21 @@ class State(StateI):
         else:
             if useTb == 1:
                 winner = self.tieBreaker
+                if winner == 1:
+                    self.p1.addStateBidProb(self, p1Bid, 1, 1)
+                    self.p2.addStateBidProb(self, p2Bid, 0, 0)
+                else:
+                    self.p1.addStateBidProb(self, p1Bid, 0, 0)
+                    self.p2.addStateBidProb(self, p2Bid, 1, 1)
                 self.tieBreaker *= -1
             else:
                 winner = -1 * self.tieBreaker
+                if winner == 1:
+                    self.p1.addStateBidProb(self, p1Bid, 1, 0)
+                    self.p2.addStateBidProb(self, p2Bid, 0, 0)
+                else:
+                    self.p1.addStateBidProb(self, p1Bid, 0, 0)
+                    self.p2.addStateBidProb(self, p2Bid, 1, 0)
             self.playerSymbol = winner
             return winner
 # =============================================================================
@@ -317,7 +333,12 @@ class State(StateI):
 #                 self.playerSymbol = -1
 #                 return -1
 # =============================================================================
-            
+    def win(self):
+        w = self.board.winner()
+        if not w==None:
+            self.isEnd = True
+        return w
+    
     def updateState(self, position):
         self.board.updateState(position, self.playerSymbol)
         # switch to another player
@@ -480,7 +501,6 @@ class Player(AgentI):
                     (action, bid, tb) = self.stateValBid(prob, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
                 self.next_action = action
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
-                self.addBid(bid)
                 return (bid + tb*0.25)
         elif (self.biddingStrategy == "state-value2"):
             positions = state.board.availableActions()
@@ -496,7 +516,6 @@ class Player(AgentI):
                 tb = 0
                 (action, bid, tb) = self.stateValBid(prob, value_max, bid, tb, None, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
-                self.addBid(bid)
                 return (bid + tb*0.25)
         elif (self.biddingStrategy == "action-value1"):
             positions = state.board.availableActions()
@@ -751,15 +770,15 @@ class Player(AgentI):
     def feedReward(self, reward):
         if self.biddingStrategy == "action-value1" or self.biddingStrategy == "action-value2":
             for st, b in zip(reversed(self.states), reversed(self.bids)):
-                if self.states_value.get(st, b) is None:
-                    self.states_value[st, b] = 0
-                self.states_value[st, b] += self.lr * (self.decay_gamma * reward - self.states_value[st, b])
+                if self.states_value.get((st, b)) is None:
+                    self.states_value[(st, b)] = 0.5
+                self.states_value[(st, b)] += self.lr * (self.decay_gamma * reward - self.states_value[(st, b)])
                 reward = self.states_value[st, b]
                 #elif not self.biddingStrategy == "TD":
         else:
             for st in reversed(self.states):
                 if self.states_value.get(st) is None:
-                    self.states_value[st] = 0
+                    self.states_value[st] = 0.5
                 self.states_value[st] += self.lr * (self.decay_gamma * reward - self.states_value[st])
                 reward = self.states_value[st]
 
@@ -825,7 +844,7 @@ class BiddingTicTacToe(GameI):
         for i in range(rounds):
             if i > 0 and i % 100 == 0:
                 self.dicts.append(state.p1.data.copy())
-                self.wins.append((self.p1Win)/i)
+                self.wins.append((self.p1Win)/(i-1))
             if i % 1000 == 0:
                 state.p1.exp_rate *= state.p1.decay_gamma
                 state.p2.exp_rate *= state.p2.decay_gamma
@@ -837,6 +856,10 @@ class BiddingTicTacToe(GameI):
                 turn = state.bid()
                 if turn == 1:
                     # Player 1
+                    state_hash = state.getHash()
+                    state.p1.addState(state_hash)
+                    state.p2.addState(state_hash)
+                    
                     positions = state.board.availableActions()
                     p1_action = state.p1.chooseAction(positions, state)
                     # take action and upate board state
@@ -845,11 +868,9 @@ class BiddingTicTacToe(GameI):
                     state.p1.update(old_state, state, state.p1.symbol)
                     state.p2.update(old_state, state, state.p2.symbol)
                     
-                    state_hash = state.getHash()
-                    state.p1.addState(state_hash)
                     # check board status if it is end
     
-                    win = state.board.winner()
+                    win = state.win()
                     if win is not None:
                         # self.showBoard()
                         # ended with p1 either win or draw
@@ -862,6 +883,10 @@ class BiddingTicTacToe(GameI):
     
                 else:
                     # Player 2
+                    state_hash = state.getHash()
+                    state.p1.addState(state_hash)
+                    state.p2.addState(state_hash)
+                    
                     positions = state.board.availableActions()
                     p2_action = state.p2.chooseAction(positions, state)
                     state.updateState(p2_action)
@@ -869,11 +894,8 @@ class BiddingTicTacToe(GameI):
                     state.p1.update(old_state, state, state.p1.symbol)
                     state.p2.update(old_state, state, state.p2.symbol)
                     
-                    
-                    state_hash = state.getHash()
-                    state.p2.addState(state_hash)
 
-                    win = state.board.winner()
+                    win = state.win()
                     if win is not None:
                         # self.showBoard()
                         # ended with p2 either win or draw
@@ -981,7 +1003,7 @@ def Plot(chips, prob, rlStrat, opt, optGame, rounds):
     return PlotError2(prob, rlStrat, rlGame, opt)
       
 def Wins(chips, prob, rlStrat, opt, optGame, rounds):
-    rl = Player("p1", prob, rlStrat, -1, chips)
+    rl = Player("p1", prob, rlStrat, 1, chips)
     
     rlSt = State(rl, opt, chips)
     rlGame = BiddingTicTacToe()
@@ -991,7 +1013,7 @@ def Wins(chips, prob, rlStrat, opt, optGame, rounds):
     return PlotWin(prob, rlStrat, rlGame, opt)
 
 def PlotWins(chips, prob, strat1, strat2, trials, rounds):
-    p2 = Player("p2", prob, strat2, 1, chips)
+    p2 = Player("p2", prob, strat2, -1, chips)
     optGame = BiddingTicTacToe()
     
     wins = []
@@ -1159,14 +1181,14 @@ def PlotStrats(prob, rlStrat, rl, opt):
 
 
 if __name__ == "__main__":
-    rlStrat = "state-value2"
+    rlStrat = "action-value2"
     chips = 8
     prob = True
     #AverageError(chips, prob, "action-value1", 3, 40000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
-    PlotWins(chips, prob, rlStrat, "optimal", 1, 10000)
+    PlotWins(chips, prob, rlStrat, "optimal", 1, 20000)
     #for prob in [True]:
     #   for strat in ["state-value1", "state-value2", "action-value1"]:
     #        AverageError(chips, prob, strat, 3, 20000)
