@@ -404,8 +404,8 @@ class Player(AgentI):
         action = positions[idx]
         return (random.randint(0, availableTokens) + 0.25*tb, action)
     
-    def getProb(self, stateHash, b):
-        (bidsWon, bidsNum) = self.stateProbs.get((stateHash, b, 1), (0,1))
+    def getProb(self, stateHash, b, tb):
+        (bidsWon, bidsNum) = self.stateProbs.get((stateHash, b, tb), (0,1))
         return (bidsWon + 0) / (bidsNum + 0)
     
     def addStateBidProb(self, state, bid, win, tb):
@@ -422,22 +422,37 @@ class Player(AgentI):
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash), 0)
                 if prob:
-                    bidWinProb = self.getProb(state.getHash(), b)
+                    bidWinProb = self.getProb(state.getHash(), b, 0)
                     value *= bidWinProb
                 if value >= value_max:
                     value_max = value
                     bid = b
                     tb = 1
                     action = pos
+            else:  #don't have tiebreaker
+                next_state = state.copy()
+                next_state.tieBreaker *= -1
+                #if not pos is None:
+                #    next_state.board.board[pos] = symbol
+                next_stateHash = next_state.getHash()
+                value = self.states_value.get((next_stateHash), 0)
+                if prob:
+                    bidWinProb = self.getProb(state.getHash(), b, 0)
+                    value *= bidWinProb
+                if value >= value_max:
+                    value_max = value
+                    bid = b
+                    tb = 1
+                    #action = pos
             next_state = state.copy()
-            next_state.chips[pId] -= 1
-            next_state.chips[oId] += 1
+            next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
+            next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
                 next_state.board.board[pos] = symbol
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash), 0)
             if prob:
-                bidWinProb = self.getProb(state.getHash(), b)
+                bidWinProb = self.getProb(state.getHash(), b, 1)
                 value *= bidWinProb
             if value >= value_max:
                 value_max = value
@@ -456,22 +471,37 @@ class Player(AgentI):
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash, b), 0)
                 if prob:
-                    bidWinProb = self.getProb(state.getHash(), b)
+                    bidWinProb = self.getProb(state.getHash(), b, 1)
                     value *= bidWinProb
                 if value >= value_max:
                     value_max = value
                     bid = b
                     tb = 1
                     action = pos
+            else:  #don't have tiebreaker
+                next_state = state.copy()
+                next_state.tieBreaker *= -1
+                #if not pos is None:
+                #    next_state.board.board[pos] = symbol
+                next_stateHash = next_state.getHash()
+                value = self.states_value.get((next_stateHash), 0)
+                if prob:
+                    bidWinProb = self.getProb(state.getHash(), b, 0)
+                    value *= bidWinProb
+                if value >= value_max:
+                    value_max = value
+                    bid = b
+                    tb = 1
+                    #action = pos
             next_state = state.copy()
-            next_state.chips[pId] -= 1
-            next_state.chips[oId] += 1
+            next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
+            next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
                 next_state.board.board[pos] = symbol
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash, b), 0)
             if prob:
-                    bidWinProb = self.getProb(state.getHash(), b)
+                    bidWinProb = self.getProb(state.getHash(), b, 0)
                     value *= bidWinProb
             if value >= value_max:
                 value_max = value
@@ -1181,10 +1211,10 @@ def PlotStrats(prob, rlStrat, rl, opt):
 
 
 if __name__ == "__main__":
-    rlStrat = "action-value2"
+    rlStrat = "action-value1"
     chips = 8
     prob = True
-    #AverageError(chips, prob, "action-value1", 3, 40000)
+    ##AverageError(chips, prob, "action-value1", 1, 20000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
