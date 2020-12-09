@@ -4,6 +4,7 @@ import random
 import math
 import sys
 import matplotlib.pyplot as plt
+from itertools import combinations, product
 
 
 
@@ -19,19 +20,28 @@ def getBoards(d):
 #   terminal nodes (that is, all states in distance0), then for all states
 #   in distance1, then in distance2, and so on.
 # =============================================================================
-    if d == 9:
+    if d == 15:
         return [Board()]
     
     boards = []
-    for i in range(3**9):
-        c = i
-        b = ""
-        for j in range(9):
-            b += str(c % 3)
-            c //= 3
-        if (b.count("0") == d): 
-            boards.append(Board(b))
-
+    upper = 15-d
+    fillup = (15-d)//2+1
+    allPos = product(range(6), repeat=2)
+    allPos = [(a,b) for (a,b) in allPos if not a<=b]
+    for i in range(fillup):
+        p1Pos = list(combinations(allPos, i))
+        #print(list(p1Pos))
+        p2Pos = list(combinations(allPos, upper-i))
+        #print(p2Pos)
+        for edges1 in p1Pos:
+            for edges2 in p2Pos:
+                if (set(edges1)).isdisjoint(set(edges2)):
+                    boards.append(Board([list(edges1), list(edges2)]))
+                    boards.append(Board([list(edges2), list(edges1)]))
+#    for b in allBoards:
+#        print(b)
+#        if (b.count(0) == d): 
+#            boards.append(Board(np.array(b)))
     return boards
 
 
@@ -89,68 +99,60 @@ class BoardI:
 class Board(BoardI):
         
 
-    def __init__(self, config="000000000"):
-        positions = np.array(list(map(int,config)))
-        positions = np.where(positions==2, -1, positions) 
-        self.board = np.reshape(positions, (3, 3))
+    def __init__(self, config=[[],[]]): # store positions with 1 and positions with 2
+        colEdges = config
+        self.board = colEdges
         
     def fromArray(self, arr):
         self.board = arr
         
     # get unique hash of current board state
     def getHash(self):
+        self.board[0].sort()
+        self.board[1].sort()
         return hash(str(self.board))
     
     def winner(self):
-        # row
-        for i in range(3):
-            if sum(self.board[i, :]) == 3:
-                self.isEnd = True
-                return 1
-            if sum(self.board[i, :]) == -3:
-                self.isEnd = True
-                return -1
-        # col
-        for i in range(3):
-            if sum(self.board[:, i]) == 3:
-                self.isEnd = True
-                return 1
-            if sum(self.board[:, i]) == -3:
-                self.isEnd = True
-                return -1
-        # diagonal
-        diag_sum1 = sum([self.board[i, i] for i in range(3)])
-        diag_sum2 = sum([self.board[i, 3 - i - 1] for i in range(3)])
-        diag_sum = max(abs(diag_sum1), abs(diag_sum2))
-        if diag_sum == 3:
-            self.isEnd = True
-            if diag_sum1 == 3 or diag_sum2 == 3:
-                return 1
-            else:
-                return -1
-
-        # tie
-        # no available positions
-        if len(self.availableActions()) == 0:
-            self.isEnd = True
-            return 0
+        p1Edges = self.board[0]
+        p2Edges = self.board[1]
+        
+        for v1, v2 in p1Edges:
+            for v3 in range(6):
+                if not v3==v1 and not v3==v2:
+                    if (v1,v3) in p1Edges or (v3,v1) in p1Edges and (v2,v3) in p1Edges or (v3,v2) in p1Edges:
+                        self.isEnd = True
+                        return -1
+        for v1, v2 in p2Edges:
+            for v3 in range(6):
+                if not v3==v1 and not v3==v2:
+                    if (v1,v3) in p2Edges or (v3,v1) in p2Edges and (v2,v3) in p2Edges or (v3,v2) in p2Edges:
+                        self.isEnd = True
+                        return 1
+#        tuples = list(combinations(range(6), 3))
+#        for v1, v2, v3 in tuples:
+#            if self.board[v1, v2] > 0:
+#                potentialLoser = self.board[v1, v2]
+#                if self.board[v1, v3] == potentialLoser and self.board[v2, v3] == potentialLoser:
+#                    self.isEnd = True
+#                    return -1 * potentialLoser
         # not end
         self.isEnd = False
         return None
     
     def numBlanks(self):
-        return np.count_nonzero(self.board==0)
+        return (15-len(self.board[0])-len(self.board[1]))
     
     def availableActions(self):
         positions = []
-        for i in range(3):
-            for j in range(3):
-                if self.board[i, j] == 0:
-                    positions.append((i, j))  # need to be tuple
+        allPos = product(range(6), repeat=2)
+        allPos = [(a,b) for (a,b) in allPos if not a<=b]
+        for v1, v2 in allPos:
+            if not (v1,v2) in self.board[0] and not (v1,v2) in self.board[1]:
+                    positions.append((v1, v2))  # need to be tuple
         return positions
     
     def getBoard(self):
-        return np.copy(self.board)
+        return [list.copy(self.board[0]), list.copy(self.board[1])]
     
     def copy(self):
         copy = Board()
@@ -161,44 +163,43 @@ class Board(BoardI):
         if (self.winner() is not None):
             return []
         children = []
-        for row,col in self.availableActions():
+        if symbol==1:
+            token = 0
+        else:
+            token = 1
+        for v1, v2 in self.availableActions():
             child = self.getBoard()
-            child[row, col] = symbol
+            child[token].append((v1,v2))
             b = Board()
             b.fromArray(child)
             children.append(b) 
-            #child[row, col] = 0
         return children
     
     def generateMove(self, nextBoard):
         nextB = nextBoard.getBoard()
-        for row in range(3):
-            for col in range(3):
-                if self.board[row, col] != nextB[row, col]: 
-                    return row,col
-        return 0,0
+#        tuples = list(combinations(range(6), 2))
+        diff1 = [pos for pos in nextB[0] if pos not in self.board[0]]
+        diff2 = [pos for pos in nextB[1] if pos not in self.board[1]]
+        if len(diff1) == 0:
+            return diff2[0]
+        else:
+            return diff1[0]
+#        for v1, v2 in tuples:
+#            if self.board[v1, v2] != nextB[v1, v2]: 
+#                return v1, v2
+#        return -1,-1
 
     def updateState(self, position, symbol):
-        self.board[position] = symbol
+        if symbol==1:
+            self.board[0].append(position)
+        else:
+            self.board[1].append(position)
         
     def showBoard(self):
-        # p1: x  p2: o
-        for i in range(0, 3):
-            print('-------------')
-            out = '| '
-            for j in range(0, 3):
-                if self.board[i, j] == 1:
-                    token = 'x'
-                if self.board[i, j] == -1:
-                    token = 'o'
-                if self.board[i, j] == 0:
-                    token = ' '
-                out += token + ' | '
-            print(out)
-        print('-------------')
+        print(self.board)
     
     def standardString(self, symbol):
-        positions = self.board.flatten()
+        positions = [pos for l in self.board for pos in l]
         for i in range(len(positions)):
             char = positions[i]
             if char==symbol:
@@ -211,7 +212,6 @@ class Board(BoardI):
     def __eq__(self, other):
         if not isinstance(other, Board):
             return False
-
         return np.array_equal(self.board, other.board)
 
 
@@ -371,7 +371,7 @@ class Player(AgentI):
 		# full state, such that nodesToDiscreteRich[k] carries all
 		# entries with node-keys that are k steps away from a full
 		# state.
-        self.nodesToDiscreteRich = [{},{},{},{},{},{},{},{},{},{}]
+        self.nodesToDiscreteRich = [{} for i in range(16)]
 
 		# nodesToMoveBid is a list of dictionaries that hold
 		# entries of the form
@@ -379,10 +379,16 @@ class Player(AgentI):
 		#
 		# where optimalMove is of the form (row, col). The nodes 
 		# are partitioned by their distance away from a full state
-        self.nodesToMoveBid = [{},{},{},{},{},{},{},{},{},{}]
+        self.nodesToMoveBid = [{} for i in range(16)]
 
         if biddingStrategy == "optimal" or biddingStrategy == "optimalExp":
-            self.generateStrategy(totalChips)
+            fr = open('discreteRich', 'rb')
+            self.nodesToDiscreteRich = pickle.load(fr)
+            fr.close()
+            fr = open('moveBid', 'rb')
+            self.nodesToMoveBid = pickle.load(fr)
+            fr.close()
+
 
     def getHash(self, board):
         boardHash = str(board.reshape(3,3)) # + str(board.chipsP1) + str(board.chipsP2)
@@ -418,7 +424,7 @@ class Player(AgentI):
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
                 if not pos is None:
-                    next_state.board.board[pos] = symbol
+                    next_state.board.updateState(pos, symbol)
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash), 0)
                 if prob:
@@ -448,7 +454,7 @@ class Player(AgentI):
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
-                next_state.board.board[pos] = symbol
+                next_state.board.updateState(pos, symbol)
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash), 0)
             if prob:
@@ -467,7 +473,7 @@ class Player(AgentI):
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
                 if not pos is None:
-                    next_state.board.board[pos] = symbol
+                    next_state.board.updateState(pos, symbol)
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash, b), 0)
                 if prob:
@@ -497,7 +503,7 @@ class Player(AgentI):
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
-                next_state.board.board[pos] = symbol
+                next_state.board.updateState(pos, symbol)
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash, b), 0)
             if prob:
@@ -600,6 +606,8 @@ class Player(AgentI):
                 return (bid + tb*0.25)
         elif (self.biddingStrategy == "optimal"):
             numBlanks = state.board.numBlanks()
+            state.board.showBoard()
+            print(numBlanks)
             move, bid = self.nodesToMoveBid[numBlanks][state.board.getHash()]
             self.next_action = move
             tb = 0
@@ -666,8 +674,9 @@ class Player(AgentI):
 # 		below should suffice.
 # =============================================================================
 				
-        for i in range(1,10):
+        for i in range(1,16):
 			# Get all nodes that are i steps away from a full state
+            print(i)
             nodes = getBoards(i)
 
             for node in nodes:
@@ -693,7 +702,7 @@ class Player(AgentI):
                 Fmax = -1.0
                 Fmin = sys.maxsize
                 myChildren = node.nextBoards(self.symbol)
-                oppChildren = node.nextBoards(-1*self.symbol)                
+                oppChildren = node.nextBoards(-1*self.symbol) 
                 for myChild in myChildren:
                     if Fmin > self.nodesToDiscreteRich[i-1][myChild.getHash()]:
                         Fmin = self.nodesToDiscreteRich[i-1][myChild.getHash()]
@@ -1207,18 +1216,32 @@ def PlotStrats(prob, rlStrat, rl, opt):
     #ax.plot_trisurf(opt.boards, opt.tiebreaker, opt.bids, antialiased=True)
     #ax.plot_trisurf(opt.boards, opt.tiebreaker, np.array(opt.bids)-np.array(rl.bids), antialiased=True)
     plt.show()
+    
+def calcOptStrat(totalChips):
+    opt = Player("px", False, "", -1, totalChips)
+    opt.generateStrategy(totalChips)
+    fw = open('discreteRich', 'wb')
+    pickle.dump(opt.nodesToDiscreteRich, fw)
+    fw.close()
+    fw = open('moveBid', 'wb')
+    pickle.dump(opt.nodesToMoveBid, fw)
+    fw.close()
 
 
 
 if __name__ == "__main__":
-    rlStrat = "action-value1"
+    rlStrat = "state-value1"
     chips = 8
     prob = True
     ##AverageError(chips, prob, "action-value1", 1, 20000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
-    PlotWins(chips, prob, rlStrat, "optimal", 1, 20000)
+    #calcOptStrat(chips)
+    PlotWins(chips, prob, rlStrat, "optimal", 1, 2000)
+    #for b in getBoards(12):
+    #    b.showBoard()
+    #getBoards(13)
     #for prob in [True]:
     #   for strat in ["state-value1", "state-value2", "action-value1"]:
     #        AverageError(chips, prob, strat, 3, 20000)
