@@ -95,8 +95,11 @@ class BoardI:
 class Board(BoardI):
         
 
-    def __init__(self, config=[[],[]]): # store positions with 1 and positions with 2
-        self.board = config
+    def __init__(self, config=None): # store positions with 1 and positions with 2
+        if config is None:
+            self.board = [[],[]]
+        else:
+            self.board = config
         
     def fromArray(self, arr):
         self.board = arr
@@ -115,13 +118,11 @@ class Board(BoardI):
             for v3 in range(6):
                 if not v3==v1 and not v3==v2:
                     if ((v1,v3) in p1Edges or (v3,v1) in p1Edges) and ((v2,v3) in p1Edges or (v3,v2) in p1Edges):
-                        self.isEnd = True
                         return -1
         for v1, v2 in p2Edges:
             for v3 in range(6):
                 if not v3==v1 and not v3==v2:
                     if ((v1,v3) in p2Edges or (v3,v1) in p2Edges) and ((v2,v3) in p2Edges or (v3,v2) in p2Edges):
-                        self.isEnd = True
                         return 1
 #        tuples = list(combinations(range(6), 3))
 #        for v1, v2, v3 in tuples:
@@ -131,10 +132,8 @@ class Board(BoardI):
 #                    self.isEnd = True
 #                    return -1 * potentialLoser
         # not end
-        if len(p1Edges) + len(p2Edges)==15:
-            self.isEnd = True
-        else:
-            self.isEnd = False
+        if len(p1Edges)+len(p2Edges)==15:
+            return 0
         return None
     
     def numBlanks(self):
@@ -426,7 +425,7 @@ class Player(AgentI):
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
                 if not pos is None:
-                    next_state.board.board[pos] = symbol
+                    next_state.board.updateState(pos, symbol)
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash), 0)
                 if prob:
@@ -456,7 +455,7 @@ class Player(AgentI):
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
-                next_state.board.board[pos] = symbol
+                next_state.board.updateState(pos, symbol)
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash), 0)
             if prob:
@@ -475,7 +474,7 @@ class Player(AgentI):
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
                 if not pos is None:
-                    next_state.board.board[pos] = symbol
+                    next_state.board.updateState(pos, symbol)
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash, b), 0)
                 if prob:
@@ -505,7 +504,7 @@ class Player(AgentI):
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
-                next_state.board.board[pos] = symbol
+                next_state.board.updateState(pos, symbol)
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash, b), 0)
             if prob:
@@ -760,8 +759,6 @@ class Player(AgentI):
                 self.nodesToDiscreteRich[i][node.getHash()] = math.floor(Fsum/2.0) + epsilon
                 self.nodesToMoveBid[i][node.getHash()] = (node.generateMove(favoredChild), bid)         
                         
-        b = Board([[(5, 4)], [(1, 0), (2, 1), (3, 2), (4, 3), (2, 0)]])
-        print(self.nodesToMoveBid[9][b.getHash()])
     
 
     def chooseAction(self, positions, current_state):
@@ -877,7 +874,7 @@ class HumanPlayer(AgentI):
     def reset(self):
         pass
     
-class BiddingTicTacToe(GameI):
+class Sim(GameI):
     
     def __init__(self):
         self.dicts = []
@@ -914,7 +911,7 @@ class BiddingTicTacToe(GameI):
                     state.p2.update(old_state, state, state.p2.symbol)
                     
                     # check board status if it is end
-    
+
                     win = state.win()
                     if win is not None:
                         # self.showBoard()
@@ -925,7 +922,7 @@ class BiddingTicTacToe(GameI):
                         state.p2.reset()
                         state.reset()
                         break
-    
+                    
                 else:
                     # Player 2
                     state_hash = state.getHash()
@@ -967,7 +964,7 @@ class BiddingTicTacToe(GameI):
                     print("Human has the tiebreaker.")
                 state.board.showBoard()
                 # check board status if it is end
-                win = state.board.winner()
+                win = state.win()
                 if win is not None:
                     if win == 1:
                         print(state.p1.name, "wins!")
@@ -988,7 +985,7 @@ class BiddingTicTacToe(GameI):
                 else:
                     print("Human has the tiebreaker.")
                 state.board.showBoard()
-                win = state.board.winner()
+                win = state.win()
                 if win is not None:
                     if win == -1:
                         print(state.p2.name, "wins!")      
@@ -1008,7 +1005,7 @@ def StateValue():
     p2 = Player("p2", prob, biddingStrategy, -1, chips)
 
     st = State(p1, p2, chips)
-    game = BiddingTicTacToe()
+    game = Sim()
     print("training...")
     game.play(st, 50000)
 
@@ -1027,7 +1024,7 @@ def Optimal():
     chips = 8
     prob = False
 
-    game = BiddingTicTacToe()
+    game = Sim()
     
     # play with human
     p1 = Player("computer", prob, biddingStrategy, 1, chips, exp_rate=0)
@@ -1041,7 +1038,7 @@ def Plot(chips, prob, rlStrat, opt, optGame, rounds):
     rl = Player("p1", prob, rlStrat, 1, chips)
     
     rlSt = State(rl, opt, chips)
-    rlGame = BiddingTicTacToe()
+    rlGame = Sim()
     print("training...")
     rlGame.play(rlSt, rounds)
     #PlotStrats(prob, rlStrat, rl, opt)
@@ -1051,7 +1048,7 @@ def Wins(chips, prob, rlStrat, opt, optGame, rounds):
     rl = Player("p1", prob, rlStrat, 1, chips)
     
     rlSt = State(rl, opt, chips)
-    rlGame = BiddingTicTacToe()
+    rlGame = Sim()
     print("training...")
     rlGame.play(rlSt, rounds)
     #PlotStrats(prob, rlStrat, rl, opt)
@@ -1059,7 +1056,7 @@ def Wins(chips, prob, rlStrat, opt, optGame, rounds):
 
 def PlotWins(chips, prob, strat1, strat2, trials, rounds):
     p2 = Player("p2", prob, strat2, -1, chips)
-    optGame = BiddingTicTacToe()
+    optGame = Sim()
     
     wins = []
     for i in range(trials):
@@ -1109,7 +1106,7 @@ def boardHeuristic(value):
 
 def AverageError(chips, prob, rlStrat, trials, rounds):
     opt = Player("p2", prob, "optimal", -1, chips)
-    optGame = BiddingTicTacToe()
+    optGame = Sim()
     
     errors = []
     for i in range(trials):
@@ -1241,7 +1238,7 @@ if __name__ == "__main__":
     prob = True
     ##AverageError(chips, prob, "action-value1", 1, 20000)
     #opt = Player("p2", "TD", 1, chips)
-    #optGame = BiddingTicTacToe()
+    #optGame = Sim()
     #Plot(chips, rlStrat, opt, optGame, 20000)
     #calcOptStrat(chips)
     #gc.disable()
