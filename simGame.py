@@ -131,7 +131,10 @@ class Board(BoardI):
 #                    self.isEnd = True
 #                    return -1 * potentialLoser
         # not end
-        self.isEnd = False
+        if len(p1Edges) + len(p2Edges)==15:
+            self.isEnd = True
+        else:
+            self.isEnd = False
         return None
     
     def numBlanks(self):
@@ -417,13 +420,13 @@ class Player(AgentI):
         (won, num) = self.stateProbs.get((state, bid, tb), (0,0))
         self.stateProbs[state, bid, tb] = (won+win, num+1)
     
-    def stateValBid(self, prob, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
+    def stateValBid(self, prob, action, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
         for b in range(int(availableTokens) + 1):
             if (tieBreaker==symbol):  #have tiebreaker
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
                 if not pos is None:
-                    next_state.board.updateState(pos, symbol)
+                    next_state.board.board[pos] = symbol
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash), 0)
                 if prob:
@@ -448,12 +451,12 @@ class Player(AgentI):
                     value_max = value
                     bid = b
                     tb = 1
-                    #action = pos
+                    action = pos
             next_state = state.copy()
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
-                next_state.board.updateState(pos, symbol)
+                next_state.board.board[pos] = symbol
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash), 0)
             if prob:
@@ -464,15 +467,15 @@ class Player(AgentI):
                 bid = b
                 tb = 0
                 action = pos
-        return (action, bid, tb)
+        return (value_max, action, bid, tb)
     
-    def actionValBid(self, prob, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
+    def actionValBid(self, prob, action, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
         for b in range(int(availableTokens) + 1):
             if (tieBreaker==symbol):  #have tiebreaker
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
                 if not pos is None:
-                    next_state.board.updateState(pos, symbol)
+                    next_state.board.board[pos] = symbol
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash, b), 0)
                 if prob:
@@ -497,12 +500,12 @@ class Player(AgentI):
                     value_max = value
                     bid = b
                     tb = 1
-                    #action = pos
+                    action = pos
             next_state = state.copy()
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
-                next_state.board.updateState(pos, symbol)
+                next_state.board.board[pos] = symbol
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash, b), 0)
             if prob:
@@ -513,7 +516,7 @@ class Player(AgentI):
                 bid = b
                 tb = 0
                 action = pos
-        return (action, bid, tb)
+        return (value_max, action, bid, tb)
     
     def getBid(self, state, pId, oId, availableTokens):
         prob = self.prob
@@ -532,8 +535,9 @@ class Player(AgentI):
                 value_max = -999
                 bid = 0
                 tb = 0
+                action = None
                 for pos in positions:
-                    (action, bid, tb) = self.stateValBid(prob, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
+                    (value_max, action, bid, tb) = self.stateValBid(prob, action, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
                 self.next_action = action
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
@@ -549,7 +553,7 @@ class Player(AgentI):
                 value_max = -999
                 bid = 0
                 tb = 0
-                (action, bid, tb) = self.stateValBid(prob, value_max, bid, tb, None, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
+                (value_max, action, bid, tb) = self.stateValBid(prob, action, value_max, bid, tb, None, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
         elif (self.biddingStrategy == "action-value1"):
@@ -564,8 +568,9 @@ class Player(AgentI):
                 value_max = -999
                 bid = 0
                 tb = 0
+                action = None
                 for pos in positions:
-                    (action, bid, tb) = self.actionValBid(prob, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
+                    (value_max, action, bid, tb) = self.actionValBid(prob, action, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
                 self.next_action = action
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
@@ -605,9 +610,6 @@ class Player(AgentI):
                 return (bid + tb*0.25)
         elif (self.biddingStrategy == "optimal"):
             numBlanks = state.board.numBlanks()
-            state.board.showBoard()
-            print(numBlanks)
-            #print(self.nodesToMoveBid[numBlanks])
             move, bid = self.nodesToMoveBid[numBlanks][state.board.getHash()]
             self.next_action = move
             tb = 0
@@ -1241,9 +1243,9 @@ if __name__ == "__main__":
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
-    calcOptStrat(chips)
+    #calcOptStrat(chips)
     #gc.disable()
-    PlotWins(chips, prob, rlStrat, "optimal", 1, 2000)
+    PlotWins(chips, prob, rlStrat, rlStrat, 1, 2000)
     #b = Board([[(5, 3), (5, 4)], [(1, 0), (2, 1), (3, 2), (4, 3)]])
 #    b.updateState((5,3), 1)
     #b.showBoard()

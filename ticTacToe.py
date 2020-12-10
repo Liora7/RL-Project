@@ -412,7 +412,7 @@ class Player(AgentI):
         (won, num) = self.stateProbs.get((state, bid, tb), (0,0))
         self.stateProbs[state, bid, tb] = (won+win, num+1)
     
-    def stateValBid(self, prob, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
+    def stateValBid(self, prob, action, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
         for b in range(int(availableTokens) + 1):
             if (tieBreaker==symbol):  #have tiebreaker
                 next_state = state.copy()
@@ -443,7 +443,7 @@ class Player(AgentI):
                     value_max = value
                     bid = b
                     tb = 1
-                    #action = pos
+                    action = pos
             next_state = state.copy()
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
@@ -459,9 +459,9 @@ class Player(AgentI):
                 bid = b
                 tb = 0
                 action = pos
-        return (action, bid, tb)
+        return (value_max, action, bid, tb)
     
-    def actionValBid(self, prob, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
+    def actionValBid(self, prob, action, value_max, bid, tb, pos, pId, oId, availableTokens, tieBreaker, symbol, state):
         for b in range(int(availableTokens) + 1):
             if (tieBreaker==symbol):  #have tiebreaker
                 next_state = state.copy()
@@ -492,7 +492,7 @@ class Player(AgentI):
                     value_max = value
                     bid = b
                     tb = 1
-                    #action = pos
+                    action = pos
             next_state = state.copy()
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
@@ -508,7 +508,7 @@ class Player(AgentI):
                 bid = b
                 tb = 0
                 action = pos
-        return (action, bid, tb)
+        return (value_max, action, bid, tb)
     
     def getBid(self, state, pId, oId, availableTokens):
         prob = self.prob
@@ -527,8 +527,9 @@ class Player(AgentI):
                 value_max = -999
                 bid = 0
                 tb = 0
+                action = None
                 for pos in positions:
-                    (action, bid, tb) = self.stateValBid(prob, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
+                    (value_max, action, bid, tb) = self.stateValBid(prob, action, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
                 self.next_action = action
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
@@ -544,7 +545,7 @@ class Player(AgentI):
                 value_max = -999
                 bid = 0
                 tb = 0
-                (action, bid, tb) = self.stateValBid(prob, value_max, bid, tb, None, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
+                (value_max, action, bid, tb) = self.stateValBid(prob, action, value_max, bid, tb, None, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
         elif (self.biddingStrategy == "action-value1"):
@@ -559,8 +560,9 @@ class Player(AgentI):
                 value_max = -999
                 bid = 0
                 tb = 0
+                action = None
                 for pos in positions:
-                    (action, bid, tb) = self.actionValBid(prob, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
+                    (value_max, action, bid, tb) = self.actionValBid(prob, action, value_max, bid, tb, pos, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
                 self.next_action = action
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
@@ -1218,7 +1220,7 @@ if __name__ == "__main__":
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
-    PlotWins(chips, prob, rlStrat, "optimal", 1, 20000)
+    PlotWins(chips, prob, rlStrat, "optimal", 1, 2000)
     #for prob in [True]:
     #   for strat in ["state-value1", "state-value2", "action-value1"]:
     #        AverageError(chips, prob, strat, 3, 20000)
