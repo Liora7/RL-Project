@@ -1034,7 +1034,7 @@ def Optimal():
     game.play2(st)
     
     
-def Plot(chips, prob, rlStrat, opt, optGame, rounds):
+def Plot(chips, prob, rlStrat, opt, rounds):
     rl = Player("p1", prob, rlStrat, 1, chips)
     
     rlSt = State(rl, opt, chips)
@@ -1044,7 +1044,7 @@ def Plot(chips, prob, rlStrat, opt, optGame, rounds):
     #PlotStrats(prob, rlStrat, rl, opt)
     return PlotError2(prob, rlStrat, rlGame, opt)
       
-def Wins(chips, prob, rlStrat, opt, optGame, rounds):
+def Wins(chips, prob, rlStrat, opt, rounds):
     rl = Player("p1", prob, rlStrat, 1, chips)
     
     rlSt = State(rl, opt, chips)
@@ -1056,11 +1056,10 @@ def Wins(chips, prob, rlStrat, opt, optGame, rounds):
 
 def PlotWins(chips, prob, strat1, strat2, trials, rounds):
     p2 = Player("p2", prob, strat2, -1, chips)
-    optGame = Sim()
     
     wins = []
     for i in range(trials):
-        wins.append(Wins(chips, prob, strat1, p2, optGame, rounds))
+        wins.append(Wins(chips, prob, strat1, p2, rounds))
     print(sum(wins)/len(wins))
     
 def PlotWin(prob, rlStrat, rlGame, opt):

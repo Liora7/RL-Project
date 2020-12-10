@@ -105,25 +105,20 @@ class Board(BoardI):
         # row
         for i in range(3):
             if sum(self.board[i, :]) == 3:
-                self.isEnd = True
                 return 1
             if sum(self.board[i, :]) == -3:
-                self.isEnd = True
                 return -1
         # col
         for i in range(3):
             if sum(self.board[:, i]) == 3:
-                self.isEnd = True
                 return 1
             if sum(self.board[:, i]) == -3:
-                self.isEnd = True
                 return -1
         # diagonal
         diag_sum1 = sum([self.board[i, i] for i in range(3)])
         diag_sum2 = sum([self.board[i, 3 - i - 1] for i in range(3)])
         diag_sum = max(abs(diag_sum1), abs(diag_sum2))
         if diag_sum == 3:
-            self.isEnd = True
             if diag_sum1 == 3 or diag_sum2 == 3:
                 return 1
             else:
@@ -132,10 +127,8 @@ class Board(BoardI):
         # tie
         # no available positions
         if len(self.availableActions()) == 0:
-            self.isEnd = True
             return 0
         # not end
-        self.isEnd = False
         return None
     
     def numBlanks(self):
@@ -176,7 +169,7 @@ class Board(BoardI):
             for col in range(3):
                 if self.board[row, col] != nextB[row, col]: 
                     return row,col
-        return 0,0
+        return -1,-1
 
     def updateState(self, position, symbol):
         self.board[position] = symbol
@@ -418,7 +411,7 @@ class Player(AgentI):
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
                 if not pos is None:
-                    next_state.board.board[pos] = symbol
+                    next_state.board.updateState(pos, symbol)
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash), 0)
                 if prob:
@@ -448,7 +441,7 @@ class Player(AgentI):
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
-                next_state.board.board[pos] = symbol
+                next_state.board.updateState(pos, symbol)
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash), 0)
             if prob:
@@ -467,7 +460,7 @@ class Player(AgentI):
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
                 if not pos is None:
-                    next_state.board.board[pos] = symbol
+                    next_state.board.updateState(pos, symbol)
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash, b), 0)
                 if prob:
@@ -497,7 +490,7 @@ class Player(AgentI):
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
             if not pos is None:
-                next_state.board.board[pos] = symbol
+                next_state.board.updateState(pos, symbol)
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash, b), 0)
             if prob:
@@ -676,12 +669,13 @@ class Player(AgentI):
 
 				# If the node is a win state for the agent, assign it 
 				# a discrete-Richman value of 0.
-                if node.winner()==self.symbol:
+                winner = node.winner()
+                if winner==self.symbol:
                     self.nodesToDiscreteRich[i][node.getHash()] = 0.0
                     continue
 				# Else if the node is a win state for the opponent, assign
 				# a discrete-Richman value of k+1.
-                elif node.winner()==(-1*self.symbol):
+                elif winner==(-1*self.symbol):
                     self.nodesToDiscreteRich[i][node.getHash()] = totalChips + 1.0
                     continue
 
@@ -954,7 +948,7 @@ class BiddingTicTacToe(GameI):
                     print("Human has the tiebreaker.")
                 state.board.showBoard()
                 # check board status if it is end
-                win = state.board.winner()
+                win = state.win()
                 if win is not None:
                     if win == 1:
                         print(state.p1.name, "wins!")
@@ -975,7 +969,7 @@ class BiddingTicTacToe(GameI):
                 else:
                     print("Human has the tiebreaker.")
                 state.board.showBoard()
-                win = state.board.winner()
+                win = state.win()
                 if win is not None:
                     if win == -1:
                         print(state.p2.name, "wins!")      
@@ -1034,7 +1028,7 @@ def Plot(chips, prob, rlStrat, opt, optGame, rounds):
     #PlotStrats(prob, rlStrat, rl, opt)
     return PlotError2(prob, rlStrat, rlGame, opt)
       
-def Wins(chips, prob, rlStrat, opt, optGame, rounds):
+def Wins(chips, prob, rlStrat, opt, rounds):
     rl = Player("p1", prob, rlStrat, 1, chips)
     
     rlSt = State(rl, opt, chips)
@@ -1046,11 +1040,10 @@ def Wins(chips, prob, rlStrat, opt, optGame, rounds):
 
 def PlotWins(chips, prob, strat1, strat2, trials, rounds):
     p2 = Player("p2", prob, strat2, -1, chips)
-    optGame = BiddingTicTacToe()
     
     wins = []
     for i in range(trials):
-        wins.append(Wins(chips, prob, rlStrat, p2, optGame, rounds))
+        wins.append(Wins(chips, prob, strat1, p2, rounds))
     print(sum(wins)/len(wins))
     
 def PlotWin(prob, rlStrat, rlGame, opt):
@@ -1220,7 +1213,7 @@ if __name__ == "__main__":
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
-    PlotWins(chips, prob, rlStrat, "optimal", 1, 2000)
+    PlotWins(chips, prob, rlStrat, "optimal", 1, 20000)
     #for prob in [True]:
     #   for strat in ["state-value1", "state-value2", "action-value1"]:
     #        AverageError(chips, prob, strat, 3, 20000)
