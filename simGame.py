@@ -4,7 +4,7 @@ import random
 import math
 import sys
 import matplotlib.pyplot as plt
-from itertools import combinations, product
+from itertools import combinations, product, permutations
 
 
 
@@ -29,19 +29,15 @@ def getBoards(d):
     allPos = product(range(6), repeat=2)
     allPos = [(a,b) for (a,b) in allPos if not a<=b]
     for i in range(fillup):
-        p1Pos = list(combinations(allPos, i))
+        p1Pos = list(permutations(allPos, i))
         #print(list(p1Pos))
-        p2Pos = list(combinations(allPos, upper-i))
+        p2Pos = list(permutations(allPos, upper-i))
         #print(p2Pos)
         for edges1 in p1Pos:
             for edges2 in p2Pos:
                 if (set(edges1)).isdisjoint(set(edges2)):
                     boards.append(Board([list(edges1), list(edges2)]))
                     boards.append(Board([list(edges2), list(edges1)]))
-#    for b in allBoards:
-#        print(b)
-#        if (b.count(0) == d): 
-#            boards.append(Board(np.array(b)))
     return boards
 
 
@@ -100,8 +96,7 @@ class Board(BoardI):
         
 
     def __init__(self, config=[[],[]]): # store positions with 1 and positions with 2
-        colEdges = config
-        self.board = colEdges
+        self.board = config
         
     def fromArray(self, arr):
         self.board = arr
@@ -119,13 +114,13 @@ class Board(BoardI):
         for v1, v2 in p1Edges:
             for v3 in range(6):
                 if not v3==v1 and not v3==v2:
-                    if (v1,v3) in p1Edges or (v3,v1) in p1Edges and (v2,v3) in p1Edges or (v3,v2) in p1Edges:
+                    if ((v1,v3) in p1Edges or (v3,v1) in p1Edges) and ((v2,v3) in p1Edges or (v3,v2) in p1Edges):
                         self.isEnd = True
                         return -1
         for v1, v2 in p2Edges:
             for v3 in range(6):
                 if not v3==v1 and not v3==v2:
-                    if (v1,v3) in p2Edges or (v3,v1) in p2Edges and (v2,v3) in p2Edges or (v3,v2) in p2Edges:
+                    if ((v1,v3) in p2Edges or (v3,v1) in p2Edges) and ((v2,v3) in p2Edges or (v3,v2) in p2Edges):
                         self.isEnd = True
                         return 1
 #        tuples = list(combinations(range(6), 3))
@@ -192,8 +187,10 @@ class Board(BoardI):
     def updateState(self, position, symbol):
         if symbol==1:
             self.board[0].append(position)
+            #self.board[0].sort()
         else:
             self.board[1].append(position)
+            #self.board[1].sort()
         
     def showBoard(self):
         print(self.board)
@@ -382,12 +379,14 @@ class Player(AgentI):
         self.nodesToMoveBid = [{} for i in range(16)]
 
         if biddingStrategy == "optimal" or biddingStrategy == "optimalExp":
-            fr = open('discreteRich', 'rb')
-            self.nodesToDiscreteRich = pickle.load(fr)
-            fr.close()
-            fr = open('moveBid', 'rb')
-            self.nodesToMoveBid = pickle.load(fr)
-            fr.close()
+            fd = open('discreteRich', 'rb')
+            self.nodesToDiscreteRich = pickle.load(fd)
+            fd.close()
+            fm = open('moveBid', 'rb')
+            self.nodesToMoveBid = pickle.load(fm)
+            fm.close()
+            #print(self.nodesToMoveBid[15])
+            
 
 
     def getHash(self, board):
@@ -608,6 +607,7 @@ class Player(AgentI):
             numBlanks = state.board.numBlanks()
             state.board.showBoard()
             print(numBlanks)
+            #print(self.nodesToMoveBid[numBlanks])
             move, bid = self.nodesToMoveBid[numBlanks][state.board.getHash()]
             self.next_action = move
             tb = 0
@@ -680,15 +680,16 @@ class Player(AgentI):
             nodes = getBoards(i)
 
             for node in nodes:
-
+                
 				# If the node is a win state for the agent, assign it 
 				# a discrete-Richman value of 0.
-                if node.winner()==self.symbol:
+                winner = node.winner()
+                if winner==self.symbol:
                     self.nodesToDiscreteRich[i][node.getHash()] = 0.0
                     continue
 				# Else if the node is a win state for the opponent, assign
 				# a discrete-Richman value of k+1.
-                elif node.winner()==(-1*self.symbol):
+                elif winner==(-1*self.symbol):
                     self.nodesToDiscreteRich[i][node.getHash()] = totalChips + 1.0
                     continue
 
@@ -703,6 +704,7 @@ class Player(AgentI):
                 Fmin = sys.maxsize
                 myChildren = node.nextBoards(self.symbol)
                 oppChildren = node.nextBoards(-1*self.symbol) 
+                        
                 for myChild in myChildren:
                     if Fmin > self.nodesToDiscreteRich[i-1][myChild.getHash()]:
                         Fmin = self.nodesToDiscreteRich[i-1][myChild.getHash()]
@@ -755,7 +757,9 @@ class Player(AgentI):
                 
                 self.nodesToDiscreteRich[i][node.getHash()] = math.floor(Fsum/2.0) + epsilon
                 self.nodesToMoveBid[i][node.getHash()] = (node.generateMove(favoredChild), bid)         
-    
+                        
+        b = Board([[(5, 4)], [(1, 0), (2, 1), (3, 2), (4, 3), (2, 0)]])
+        print(self.nodesToMoveBid[9][b.getHash()])
     
 
     def chooseAction(self, positions, current_state):
@@ -1057,7 +1061,7 @@ def PlotWins(chips, prob, strat1, strat2, trials, rounds):
     
     wins = []
     for i in range(trials):
-        wins.append(Wins(chips, prob, rlStrat, p2, optGame, rounds))
+        wins.append(Wins(chips, prob, strat1, p2, optGame, rounds))
     print(sum(wins)/len(wins))
     
 def PlotWin(prob, rlStrat, rlGame, opt):
@@ -1220,12 +1224,12 @@ def PlotStrats(prob, rlStrat, rl, opt):
 def calcOptStrat(totalChips):
     opt = Player("px", False, "", -1, totalChips)
     opt.generateStrategy(totalChips)
-    fw = open('discreteRich', 'wb')
-    pickle.dump(opt.nodesToDiscreteRich, fw)
-    fw.close()
-    fw = open('moveBid', 'wb')
-    pickle.dump(opt.nodesToMoveBid, fw)
-    fw.close()
+    fd = open('discreteRich', 'wb')
+    pickle.dump(opt.nodesToDiscreteRich, fd)
+    fd.close()
+    fm = open('moveBid', 'wb')
+    pickle.dump(opt.nodesToMoveBid, fm)
+    fm.close()
 
 
 
@@ -1237,11 +1241,27 @@ if __name__ == "__main__":
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
-    #calcOptStrat(chips)
+    calcOptStrat(chips)
+    #gc.disable()
     PlotWins(chips, prob, rlStrat, "optimal", 1, 2000)
-    #for b in getBoards(12):
+    #b = Board([[(5, 3), (5, 4)], [(1, 0), (2, 1), (3, 2), (4, 3)]])
+#    b.updateState((5,3), 1)
+    #b.showBoard()
+    #print(b.getHash())
+    #b.showBoard()
+    
+    #sys.stdout = open("boards.txt", "w")
+    #for b in getBoards(9):
     #    b.showBoard()
-    #getBoards(13)
+#    for b in getBoards(15):
+#        myChildren = b.nextBoards(1)
+#        oppChildren = b.nextBoards(-1)
+#        for c in myChildren:
+#            c.showBoard()
+#        for c in oppChildren:
+#            c.showBoard()
+    #sys.stdout.close()
+    #getBoards(9)
     #for prob in [True]:
     #   for strat in ["state-value1", "state-value2", "action-value1"]:
     #        AverageError(chips, prob, strat, 3, 20000)
