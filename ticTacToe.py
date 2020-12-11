@@ -1052,7 +1052,7 @@ def PlotWin(prob, rlStrat, rlGame, opt):
     plt.scatter(range(len(wins)), wins)
     # Add title and axis names
     probStr = "Probability " if prob else ""
-    plt.title(probStr + rlStrat + " vs. Optimal Strategy")
+    plt.title("TicTacToe " + probStr + rlStrat + " vs. Optimal Strategy")
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean winning rate')
     plt.show()
@@ -1120,7 +1120,7 @@ def PlotError(prob, rlStrat, rlGame, optGame):
     plt.scatter(range(len(errors)), errors)
     # Add title and axis names
     probStr = "Probability " if prob else ""
-    plt.title(probStr + rlStrat + " vs. Optimal Strategy")
+    plt.title("TicTacToe " + probStr + rlStrat + " vs. Optimal Strategy")
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean difference in bids made')
     plt.show()
@@ -1150,7 +1150,7 @@ def PlotError2(prob, rlStrat, rlGame, opt):
     plt.scatter(range(len(errors)), errors)
     # Add title and axis names
     probStr = "Probability " if prob else ""
-    plt.title(probStr + rlStrat + " vs. Optimal Strategy")
+    plt.title("TicTacToe " + probStr + rlStrat + " vs. Optimal Strategy")
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean difference in bids made')
     plt.show()

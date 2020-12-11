@@ -4,7 +4,8 @@ import random
 import math
 import sys
 import matplotlib.pyplot as plt
-from itertools import combinations, product, permutations
+from itertools import combinations, product
+from ast import literal_eval
 
 
 
@@ -198,15 +199,10 @@ class Board(BoardI):
         print(self.board)
     
     def standardString(self, symbol):
-        positions = [pos for l in self.board for pos in l]
-        for i in range(len(positions)):
-            char = positions[i]
-            if char==symbol:
-                positions[i] = 1
-            elif char==-1*symbol:
-                positions[i] = 2
-        positions = list(map(str, positions))
-        return(('').join(positions))
+        if symbol==1:
+            return str(self.getBoard())
+        else:
+            return str([self.board[1], self.board[0]])
     
     def __eq__(self, other):
         if not isinstance(other, Board):
@@ -1068,7 +1064,7 @@ def PlotWin(prob, rlStrat, rlGame, opt):
     plt.scatter(range(len(wins)), wins)
     # Add title and axis names
     probStr = "Probability " if prob else ""
-    plt.title(probStr + rlStrat + " vs. Optimal Strategy")
+    plt.title("Sim " + probStr + rlStrat + " vs. Optimal Strategy")
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean winning rate')
     plt.show()
@@ -1105,11 +1101,10 @@ def boardHeuristic(value):
 
 def AverageError(chips, prob, rlStrat, trials, rounds):
     opt = Player("p2", prob, "optimal", -1, chips)
-    optGame = Sim()
     
     errors = []
     for i in range(trials):
-        errors.append(Plot(chips, prob, rlStrat, opt, optGame, rounds))
+        errors.append(Plot(chips, prob, rlStrat, opt, rounds))
     print(sum(errors)/len(errors))
 
   
@@ -1136,7 +1131,7 @@ def PlotError(prob, rlStrat, rlGame, optGame):
     plt.scatter(range(len(errors)), errors)
     # Add title and axis names
     probStr = "Probability " if prob else ""
-    plt.title(probStr + rlStrat + " vs. Optimal Strategy")
+    plt.title("Sim " + probStr + rlStrat + " vs. Optimal Strategy")
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean difference in bids made')
     plt.show()
@@ -1154,7 +1149,8 @@ def PlotError2(prob, rlStrat, rlGame, opt):
         rDict = {key: rDict[key] for key in keys}
         (rKeys, rBids) = map(list, zip(*rDict.items()))
         for (boardStr, rlTb) in rKeys:
-            board = Board(boardStr)
+            b = list(literal_eval(boardStr))
+            board = Board(b)
             numBlanks = board.numBlanks()
             _, optBid = opt.nodesToMoveBid[numBlanks][board.getHash()]
             #optTb = 0
@@ -1166,7 +1162,7 @@ def PlotError2(prob, rlStrat, rlGame, opt):
     plt.scatter(range(len(errors)), errors)
     # Add title and axis names
     probStr = "Probability " if prob else ""
-    plt.title(probStr + rlStrat + " vs. Optimal Strategy")
+    plt.title("Sim " + probStr + rlStrat + " vs. Optimal Strategy")
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean difference in bids made')
     plt.show()
@@ -1234,14 +1230,14 @@ def calcOptStrat(totalChips):
 if __name__ == "__main__":
     rlStrat = "state-value1"
     chips = 8
-    prob = True
-    ##AverageError(chips, prob, "action-value1", 1, 20000)
+    prob = False
+    AverageError(chips, prob, "state-value1", 1, 20000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = Sim()
     #Plot(chips, rlStrat, opt, optGame, 20000)
     #calcOptStrat(chips)
     #gc.disable()
-    PlotWins(chips, prob, rlStrat, "optimal", 1, 2000)
+    #PlotWins(chips, prob, rlStrat, "optimal", 1, 20000)
     #b = Board([[(5, 3), (5, 4)], [(1, 0), (2, 1), (3, 2), (4, 3)]])
 #    b.updateState((5,3), 1)
     #b.showBoard()
