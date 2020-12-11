@@ -29,9 +29,9 @@ def getBoards(d):
     allPos = product(range(6), repeat=2)
     allPos = [(a,b) for (a,b) in allPos if not a<=b]
     for i in range(fillup):
-        p1Pos = list(permutations(allPos, i))
+        p1Pos = list(combinations(allPos, i))
         #print(list(p1Pos))
-        p2Pos = list(permutations(allPos, upper-i))
+        p2Pos = list(combinations(allPos, upper-i))
         #print(p2Pos)
         for edges1 in p1Pos:
             for edges2 in p2Pos:
@@ -225,7 +225,7 @@ class State(StateI):
         self.boardHash = None
         # init p1 plays first
         self.playerSymbol = 1
-        agentChips = math.ceil(0.51953126*totalChips)
+        agentChips = math.ceil(0.5*totalChips)
         #agentChips =  math.ceil(0.5*totalChips)
         self.chips = [totalChips, agentChips, totalChips-agentChips]
         self.tieBreaker = 1
@@ -1241,7 +1241,7 @@ if __name__ == "__main__":
     #Plot(chips, rlStrat, opt, optGame, 20000)
     #calcOptStrat(chips)
     #gc.disable()
-    PlotWins(chips, prob, rlStrat, rlStrat, 1, 2000)
+    PlotWins(chips, prob, rlStrat, "optimal", 1, 2000)
     #b = Board([[(5, 3), (5, 4)], [(1, 0), (2, 1), (3, 2), (4, 3)]])
 #    b.updateState((5,3), 1)
     #b.showBoard()
