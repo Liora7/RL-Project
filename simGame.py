@@ -342,12 +342,13 @@ class State(StateI):
 
 
 class Player(AgentI):
-    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, exp_rate=0.4):
+    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, exp_rate=0.25):
         self.name = name
         self.states = []  # record all positions taken
         self.bids = []  # record all bids taken
-        self.lr = 0.2
+        self.lr = 0.15
         self.exp_rate = exp_rate
+        self.exp_rate_decay = 0.95
         self.decay_gamma = 0.95
         self.states_value = {}  # state -> value
         self.biddingStrategy = biddingStrategy
@@ -514,6 +515,7 @@ class Player(AgentI):
         return (value_max, action, bid, tb)
     
     def getBid(self, state, pId, oId, availableTokens):
+        self.next_action = None
         prob = self.prob
         if (self.biddingStrategy == "random"):
             # do random bid
@@ -548,6 +550,7 @@ class Player(AgentI):
                 value_max = -999
                 bid = 0
                 tb = 0
+                action = None
                 (value_max, action, bid, tb) = self.stateValBid(prob, action, value_max, bid, tb, None, pId, oId, availableTokens, state.tieBreaker, self.symbol, state)
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
@@ -763,9 +766,9 @@ class Player(AgentI):
             for p in positions:
                 next_state = current_state.copy()
                 next_state.playerSymbol = self.symbol
-                next_state.board.board[p] = self.symbol
+                next_state.board.updateState(p, self.symbol)
                 next_stateHash = next_state.getHash()
-                value = 0 if self.states_value.get(next_stateHash) is None else self.states_value.get(next_stateHash)
+                value = self.states_value.get(next_stateHash, 0)
                 if value >= value_max:
                     value_max = value
                     action = p
@@ -884,8 +887,8 @@ class Sim(GameI):
                 self.dicts.append(state.p1.data.copy())
                 self.wins.append((self.p1Win)/(i-1))
             if i % 1000 == 0:
-                state.p1.exp_rate *= state.p1.decay_gamma
-                state.p2.exp_rate *= state.p2.decay_gamma
+                state.p1.exp_rate *= state.p1.exp_rate_decay
+                state.p2.exp_rate *= state.p2.exp_rate_decay
                 print("Rounds {}".format(i))
                 #print(sum(state.p1.states_value.values()))
 
@@ -1231,7 +1234,7 @@ if __name__ == "__main__":
     rlStrat = "state-value1"
     chips = 8
     prob = False
-    AverageError(chips, prob, "state-value1", 1, 20000)
+    AverageError(chips, prob, "action-value2", 10, 20000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = Sim()
     #Plot(chips, rlStrat, opt, optGame, 20000)
