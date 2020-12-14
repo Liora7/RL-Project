@@ -510,7 +510,7 @@ class Player(AgentI):
         if (self.biddingStrategy == "random"):
             # do random bid
             return self.randomBid(availableTokens, state.tieBreaker, self.symbol)
-        elif (self.biddingStrategy == "state-value1" or self.biddingStrategy == "TD"):
+        elif (self.biddingStrategy == "state-value1" or self.biddingStrategy == "TD" or self.biddingStrategy == "pureTD"):
             positions = state.board.availableActions()
             if np.random.uniform(0, 1) <= self.exp_rate:
                 # do random bid
@@ -775,7 +775,7 @@ class Player(AgentI):
         
     # after each round, backpropagate and update state values
     def update(self, state, next_state, me):
-        if self.biddingStrategy == "TD":
+        if self.biddingStrategy == "TD" or self.biddingStrategy == "pureTD":
             st_hash = state.getHash()
             next_st_hash = next_state.getHash()
             if self.states_value.get(st_hash) is None:
@@ -804,7 +804,7 @@ class Player(AgentI):
                 self.states_value[(st, b)] += self.lr * (self.decay_gamma * reward - self.states_value[(st, b)])
                 reward = self.states_value[st, b]
                 #elif not self.biddingStrategy == "TD":
-        else:
+        elif not self.biddingStrategy == "pureTD":
             for st in reversed(self.states):
                 if self.states_value.get(st) is None:
                     self.states_value[st] = 0.5
@@ -873,7 +873,7 @@ class BiddingTicTacToe(GameI):
         for i in range(rounds):
             if i > 0 and i % 100 == 0:
                 self.dicts.append(state.p1.data.copy())
-                self.wins.append((self.p1Win)/(i-1))
+                self.wins.append((self.p1Win)/i)
             if i % 1000 == 0:
                 state.p1.exp_rate *= state.p1.exp_rate_decay
                 state.p2.exp_rate *= state.p2.exp_rate_decay
