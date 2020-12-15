@@ -384,7 +384,6 @@ class Player(AgentI):
             fm = open('moveBid', 'rb')
             self.nodesToMoveBid = pickle.load(fm)
             fm.close()
-            #print(self.nodesToMoveBid[15])
             
 
 
@@ -410,7 +409,7 @@ class Player(AgentI):
     
     def getProb(self, stateHash, b, tb):
         (bidsWon, bidsNum) = self.stateProbs.get((stateHash, b, tb), (0,1))
-        return (bidsWon + 0) / (bidsNum + 0)
+        return (bidsWon + 1) / (bidsNum + 2)
     
     def addStateBidProb(self, state, bid, win, tb):
         (won, num) = self.stateProbs.get((state, bid, tb), (0,0))
@@ -590,7 +589,7 @@ class Player(AgentI):
                     if (state.tieBreaker==self.symbol):  #have tiebreaker
                         value = self.states_value.get((stateHash), 0)
                         if prob:
-                            bidWinProb = self.getProb(state.getHash(), b)
+                            bidWinProb = self.getProb(state.getHash(), b, 1)
                             value *= bidWinProb
                         if value >= value_max:
                             value_max = value
@@ -598,7 +597,7 @@ class Player(AgentI):
                             tb = 1
                     value = self.states_value.get((stateHash), 0)
                     if prob:
-                        bidWinProb = self.getProb(state.getHash(), b)
+                        bidWinProb = self.getProb(state.getHash(), b, 0)
                         value *= bidWinProb
                     if value >= value_max:
                         value_max = value
@@ -1233,8 +1232,8 @@ def calcOptStrat(totalChips):
 if __name__ == "__main__":
     rlStrat = "TD"
     chips = 8
-    prob = False
-    #AverageError(chips, prob, "TD", 10, 20000)
+    prob = True
+    #AverageError(chips, prob, rlStrat, 10, 20000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = Sim()
     #Plot(chips, rlStrat, opt, optGame, 20000)

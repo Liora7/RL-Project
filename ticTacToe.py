@@ -374,9 +374,15 @@ class Player(AgentI):
 		# where optimalMove is of the form (row, col). The nodes 
 		# are partitioned by their distance away from a full state
         self.nodesToMoveBid = [{},{},{},{},{},{},{},{},{},{}]
-
+            
         if biddingStrategy == "optimal" or biddingStrategy == "optimalExp":
-            self.generateStrategy(totalChips)
+            fd = open('discreteRich', 'rb')
+            self.nodesToDiscreteRich = pickle.load(fd)
+            fd.close()
+            fm = open('moveBid', 'rb')
+            self.nodesToMoveBid = pickle.load(fm)
+            fm.close()
+            
 
     def getHash(self, board):
         boardHash = str(board.reshape(3,3)) # + str(board.chipsP1) + str(board.chipsP2)
@@ -580,7 +586,7 @@ class Player(AgentI):
                     if (state.tieBreaker==self.symbol):  #have tiebreaker
                         value = self.states_value.get((stateHash), 0)
                         if prob:
-                            bidWinProb = self.getProb(state.getHash(), b)
+                            bidWinProb = self.getProb(state.getHash(), b, 1)
                             value *= bidWinProb
                         if value >= value_max:
                             value_max = value
@@ -588,7 +594,7 @@ class Player(AgentI):
                             tb = 1
                     value = self.states_value.get((stateHash), 0)
                     if prob:
-                        bidWinProb = self.getProb(state.getHash(), b)
+                        bidWinProb = self.getProb(state.getHash(), b, 0)
                         value *= bidWinProb
                     if value >= value_max:
                         value_max = value
@@ -1206,11 +1212,22 @@ def PlotStrats(prob, rlStrat, rl, opt):
     plt.show()
 
 
+def calcOptStrat(totalChips):
+    opt = Player("px", False, "", -1, totalChips)
+    opt.generateStrategy(totalChips)
+    fd = open('discreteRich', 'wb')
+    pickle.dump(opt.nodesToDiscreteRich, fd)
+    fd.close()
+    fm = open('moveBid', 'wb')
+    pickle.dump(opt.nodesToMoveBid, fm)
+    fm.close()
+
 
 if __name__ == "__main__":
     rlStrat = "action-value1"
     chips = 8
     prob = True
+    calcOptStrat(chips)
     ##AverageError(chips, prob, "action-value1", 1, 20000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
