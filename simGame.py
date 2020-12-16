@@ -1041,6 +1041,16 @@ def Plot(chips, prob, rlStrat, opt, rounds):
     rlGame.play(rlSt, rounds)
     #PlotStrats(prob, rlStrat, rl, opt)
     return PlotError2(prob, rlStrat, rlGame, opt)
+
+def PlotBoth(chips, prob, rlStrat, opt, rounds):
+    rl = Player("p1", prob, rlStrat, 1, chips)
+    
+    rlSt = State(rl, opt, chips)
+    rlGame = BiddingTicTacToe()
+    print("training...")
+    rlGame.play(rlSt, rounds)
+    #PlotStrats(prob, rlStrat, rl, opt)
+    return (PlotError2(prob, rlStrat, rlGame, opt), PlotWin(prob, rlStrat, rlGame, opt))
       
 def Wins(chips, prob, rlStrat, opt, rounds):
     rl = Player("p1", prob, rlStrat, 1, chips)
@@ -1108,8 +1118,20 @@ def AverageError(chips, prob, rlStrat, trials, rounds):
     for i in range(trials):
         errors.append(Plot(chips, prob, rlStrat, opt, rounds))
     print(sum(errors)/len(errors))
+    
+    
+def AverageErrorAndWins(chips, prob, rlStrat, trials, rounds):
+    opt = Player("p2", prob, "optimal", -1, chips)
+    
+    errors = []
+    wins = []
+    for i in range(trials):
+        (error, win) = PlotBoth(chips, prob, rlStrat, opt, rounds)
+        errors.append(error)
+        wins.append(win)
+    print("error: ", sum(errors)/len(errors))
+    print("wins: ", sum(wins)/len(wins))
 
-  
 
 def PlotError(prob, rlStrat, rlGame, optGame):
     rlDicts = rlGame.dicts
@@ -1216,6 +1238,7 @@ def PlotStrats(prob, rlStrat, rl, opt):
     #ax.plot_trisurf(opt.boards, opt.tiebreaker, opt.bids, antialiased=True)
     #ax.plot_trisurf(opt.boards, opt.tiebreaker, np.array(opt.bids)-np.array(rl.bids), antialiased=True)
     plt.show()
+
     
 def calcOptStrat(totalChips):
     opt = Player("px", False, "", -1, totalChips)
@@ -1239,7 +1262,8 @@ if __name__ == "__main__":
     #Plot(chips, rlStrat, opt, optGame, 20000)
     #calcOptStrat(chips)
     #gc.disable()
-    PlotWins(chips, prob, rlStrat, "optimal", 10, 20000)
+    AverageErrorAndWins(chips, prob, rlStrat, 10, 10000)
+    #PlotWins(chips, prob, rlStrat, "optimal", 10, 20000)
     #b = Board([[(5, 3), (5, 4)], [(1, 0), (2, 1), (3, 2), (4, 3)]])
 #    b.updateState((5,3), 1)
     #b.showBoard()

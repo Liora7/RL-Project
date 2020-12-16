@@ -219,8 +219,8 @@ class State(StateI):
         self.boardHash = None
         # init p1 plays first
         self.playerSymbol = 1
-        agentChips = math.ceil(0.51953126*totalChips)
-        #agentChips =  math.ceil(0.5*totalChips)
+        #agentChips = math.ceil(0.51953126*totalChips)
+        agentChips = math.ceil(0.5*totalChips)
         self.chips = [totalChips, agentChips, totalChips-agentChips]
         self.tieBreaker = 1
         
@@ -261,7 +261,8 @@ class State(StateI):
         self.boardHash = None
         self.isEnd = False
         self.playerSymbol = 1
-        agentChips = math.ceil(0.51953126*self.chips[0])
+        #agentChips = math.ceil(0.51953126*self.chips[0])
+        agentChips = math.ceil(0.5*self.chips[0])
         self.chips = [self.chips[0], agentChips, self.chips[0]-agentChips]
         
     def bid(self): 
@@ -340,13 +341,13 @@ class State(StateI):
 
 
 class Player(AgentI):
-    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, exp_rate=0.4):
+    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, exp_rate=0.2):
         self.name = name
         self.states = []  # record all positions taken
         self.bids = []  # record all bids taken
-        self.lr = 0.2
+        self.lr = 0.3
         self.exp_rate = exp_rate
-        exp_rate_decay = 0.95
+        self.exp_rate_decay = 0.9
         self.decay_gamma = 0.95
         self.states_value = {}  # state -> value
         self.biddingStrategy = biddingStrategy
@@ -1036,6 +1037,16 @@ def Plot(chips, prob, rlStrat, opt, rounds):
     rlGame.play(rlSt, rounds)
     #PlotStrats(prob, rlStrat, rl, opt)
     return PlotError2(prob, rlStrat, rlGame, opt)
+
+def PlotBoth(chips, prob, rlStrat, opt, rounds):
+    rl = Player("p1", prob, rlStrat, 1, chips)
+    
+    rlSt = State(rl, opt, chips)
+    rlGame = BiddingTicTacToe()
+    print("training...")
+    rlGame.play(rlSt, rounds)
+    #PlotStrats(prob, rlStrat, rl, opt)
+    return (PlotError2(prob, rlStrat, rlGame, opt), PlotWin(prob, rlStrat, rlGame, opt))
       
 def Wins(chips, prob, rlStrat, opt, rounds):
     rl = Player("p1", prob, rlStrat, 1, chips)
@@ -1103,6 +1114,18 @@ def AverageError(chips, prob, rlStrat, trials, rounds):
     for i in range(trials):
         errors.append(Plot(chips, prob, rlStrat, opt, rounds))
     print(sum(errors)/len(errors))
+    
+def AverageErrorAndWins(chips, prob, rlStrat, trials, rounds):
+    opt = Player("p2", prob, "optimal", -1, chips)
+    
+    errors = []
+    wins = []
+    for i in range(trials):
+        (error, win) = PlotBoth(chips, prob, rlStrat, opt, rounds)
+        errors.append(error)
+        wins.append(win)
+    print("error: ", sum(errors)/len(errors))
+    print("wins: ", sum(wins)/len(wins))
 
   
 
@@ -1226,13 +1249,13 @@ def calcOptStrat(totalChips):
 if __name__ == "__main__":
     rlStrat = "action-value1"
     chips = 8
-    prob = True
-    calcOptStrat(chips)
-    ##AverageError(chips, prob, "action-value1", 1, 20000)
+    prob = False
+    #calcOptStrat(chips)
+    AverageErrorAndWins(chips, prob, rlStrat, 5, 20000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
-    PlotWins(chips, prob, rlStrat, "optimal", 1, 20000)
+    #PlotWins(chips, prob, rlStrat, "optimal", 1, 5000)
     #for prob in [True]:
     #   for strat in ["state-value1", "state-value2", "action-value1"]:
     #        AverageError(chips, prob, strat, 3, 20000)
