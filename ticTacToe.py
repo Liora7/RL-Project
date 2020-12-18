@@ -4,6 +4,7 @@ import random
 import math
 import sys
 import matplotlib.pyplot as plt
+import csv
 
 
 
@@ -341,11 +342,11 @@ class State(StateI):
 
 
 class Player(AgentI):
-    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, exp_rate=0.2):
+    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, learn_rate=0.3, exp_rate=0.4):
         self.name = name
         self.states = []  # record all positions taken
         self.bids = []  # record all bids taken
-        self.lr = 0.3
+        self.lr = learn_rate
         self.exp_rate = exp_rate
         self.exp_rate_decay = 0.9
         self.decay_gamma = 0.95
@@ -377,10 +378,10 @@ class Player(AgentI):
         self.nodesToMoveBid = [{},{},{},{},{},{},{},{},{},{}]
             
         if biddingStrategy == "optimal" or biddingStrategy == "optimalExp":
-            fd = open('discreteRich', 'rb')
+            fd = open('TTTDiscreteRich', 'rb')
             self.nodesToDiscreteRich = pickle.load(fd)
             fd.close()
-            fm = open('moveBid', 'rb')
+            fm = open('TTTMoveBid', 'rb')
             self.nodesToMoveBid = pickle.load(fm)
             fm.close()
             
@@ -407,7 +408,7 @@ class Player(AgentI):
     
     def getProb(self, stateHash, b, tb):
         (bidsWon, bidsNum) = self.stateProbs.get((stateHash, b, tb), (0,1))
-        return (bidsWon + 0) / (bidsNum + 0)
+        return (bidsWon + 1) / (bidsNum + 2)
     
     def addStateBidProb(self, state, bid, win, tb):
         (won, num) = self.stateProbs.get((state, bid, tb), (0,0))
@@ -423,24 +424,9 @@ class Player(AgentI):
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash), 0)
                 if prob:
-                    bidWinProb = self.getProb(state.getHash(), b, 0)
+                    bidWinProb = self.getProb(state.getHash(), b, 1)
                     value *= bidWinProb
-                if value >= value_max:
-                    value_max = value
-                    bid = b
-                    tb = 1
-                    action = pos
-            else:  #don't have tiebreaker
-                next_state = state.copy()
-                next_state.tieBreaker *= -1
-                #if not pos is None:
-                #    next_state.board.board[pos] = symbol
-                next_stateHash = next_state.getHash()
-                value = self.states_value.get((next_stateHash), 0)
-                if prob:
-                    bidWinProb = self.getProb(state.getHash(), b, 0)
-                    value *= bidWinProb
-                if value >= value_max:
+                if value > value_max:
                     value_max = value
                     bid = b
                     tb = 1
@@ -453,9 +439,9 @@ class Player(AgentI):
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash), 0)
             if prob:
-                bidWinProb = self.getProb(state.getHash(), b, 1)
+                bidWinProb = self.getProb(state.getHash(), b, 0)
                 value *= bidWinProb
-            if value >= value_max:
+            if value > value_max:
                 value_max = value
                 bid = b
                 tb = 0
@@ -474,22 +460,7 @@ class Player(AgentI):
                 if prob:
                     bidWinProb = self.getProb(state.getHash(), b, 1)
                     value *= bidWinProb
-                if value >= value_max:
-                    value_max = value
-                    bid = b
-                    tb = 1
-                    action = pos
-            else:  #don't have tiebreaker
-                next_state = state.copy()
-                next_state.tieBreaker *= -1
-                #if not pos is None:
-                #    next_state.board.board[pos] = symbol
-                next_stateHash = next_state.getHash()
-                value = self.states_value.get((next_stateHash), 0)
-                if prob:
-                    bidWinProb = self.getProb(state.getHash(), b, 0)
-                    value *= bidWinProb
-                if value >= value_max:
+                if value > value_max:
                     value_max = value
                     bid = b
                     tb = 1
@@ -504,7 +475,7 @@ class Player(AgentI):
             if prob:
                     bidWinProb = self.getProb(state.getHash(), b, 0)
                     value *= bidWinProb
-            if value >= value_max:
+            if value > value_max:
                 value_max = value
                 bid = b
                 tb = 0
@@ -823,7 +794,7 @@ class Player(AgentI):
         self.nextAction = None
 
     def savePolicy(self):
-        fw = open('policy_' + str(self.name), 'wb')
+        fw = open('ttt_policy_' + str(self.name), 'wb')
         pickle.dump(self.states_value, fw)
         fw.close()
 
@@ -871,15 +842,18 @@ class HumanPlayer(AgentI):
 class BiddingTicTacToe(GameI):
     
     def __init__(self):
-        self.dicts = []
+        self.p1Dicts = []
+        self.p2Dicts = []
         self.p1Win = 0
+        self.p2Win = 0
         self.wins = []
     
     def play(self, init_state, rounds=100):
         state = init_state
         for i in range(rounds):
             if i > 0 and i % 100 == 0:
-                self.dicts.append(state.p1.data.copy())
+                self.p1Dicts.append(state.p1.data.copy())
+                self.p2Dicts.append(state.p2.data.copy())
                 self.wins.append((self.p1Win)/i)
             if i % 1000 == 0:
                 state.p1.exp_rate *= state.p1.exp_rate_decay
@@ -908,7 +882,6 @@ class BiddingTicTacToe(GameI):
     
                     win = state.win()
                     if win is not None:
-                        # self.showBoard()
                         # ended with p1 either win or draw
                         self.p1Win += 1
                         state.giveReward()
@@ -933,13 +906,17 @@ class BiddingTicTacToe(GameI):
 
                     win = state.win()
                     if win is not None:
-                        # self.showBoard()
                         # ended with p2 either win or draw
+                        self.p2Win += 1
                         state.giveReward()
                         state.p1.reset()
                         state.p2.reset()
                         state.reset()
                         break
+        self.p1Dicts.append(state.p1.data.copy())
+        self.p2Dicts.append(state.p2.data.copy())
+        self.wins.append((self.p1Win)/rounds)
+        #print(self.wins)
 
     # play with human
     def play2(self, state):
@@ -1038,15 +1015,49 @@ def Plot(chips, prob, rlStrat, opt, rounds):
     #PlotStrats(prob, rlStrat, rl, opt)
     return PlotError2(prob, rlStrat, rlGame, opt)
 
-def PlotBoth(chips, prob, rlStrat, opt, rounds):
-    rl = Player("p1", prob, rlStrat, 1, chips)
-    
+def PlotBoth(chips, prob, rlStrat, rl, opt, rounds):
+    if rl is None:
+        rl = Player("p1", prob, rlStrat, 1, chips)
     rlSt = State(rl, opt, chips)
     rlGame = BiddingTicTacToe()
     print("training...")
     rlGame.play(rlSt, rounds)
     #PlotStrats(prob, rlStrat, rl, opt)
-    return (PlotError2(prob, rlStrat, rlGame, opt), PlotWin(prob, rlStrat, rlGame, opt))
+    saveStateValstoCSV(rl)
+    rl.savePolicy()
+    return (PlotError2(prob, rlStrat, rlGame, opt), PlotWin(prob, rlStrat, "optimal", rlGame))
+
+
+def Plot2RLs(chips, prob, strat1, strat2, rounds):
+    p1 = Player("p1", prob, strat1, 1, chips)
+    p2 = Player("p2", prob, strat2, -1, chips)
+    
+    rlSt = State(p1, p2, chips)
+    rlGame = BiddingTicTacToe()
+    print("training...")
+    rlGame.play(rlSt, rounds)
+    #PlotStrats(prob, rlStrat, rl, opt
+    saveStateValstoCSV(p1)
+    return (PlotError3(prob, strat1, strat2, rlGame), PlotWin(prob, strat1, strat2, rlGame))
+
+def saveStateValstoCSV(agent):
+    with open('TTTPolicy.csv', 'w', newline='') as file:
+        fieldnames = ['board_hash', 'value']
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+    
+        writer.writeheader()
+        for key in agent.states_value.keys():
+            file.write("%s,%s\n"%(key,agent.states_value[key]))
+            
+def saveErrorstoCSV(errors):
+    with open('TTTErrors.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(errors)
+        
+def saveWinstoCSV(wins):
+    with open('TTTWins.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(wins)
       
 def Wins(chips, prob, rlStrat, opt, rounds):
     rl = Player("p1", prob, rlStrat, 1, chips)
@@ -1066,13 +1077,14 @@ def PlotWins(chips, prob, strat1, strat2, trials, rounds):
         wins.append(Wins(chips, prob, strat1, p2, rounds))
     print(sum(wins)/len(wins))
     
-def PlotWin(prob, rlStrat, rlGame, opt):
+def PlotWin(prob, strat1, strat2, rlGame):
     wins = rlGame.wins
     
     plt.scatter(range(len(wins)), wins)
+    saveWinstoCSV(wins)
     # Add title and axis names
     probStr = "Probability " if prob else ""
-    plt.title("TicTacToe " + probStr + rlStrat + " vs. Optimal Strategy")
+    plt.title("TicTacToe " + probStr + strat1 + " vs " + strat2)
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean winning rate')
     plt.show()
@@ -1115,18 +1127,29 @@ def AverageError(chips, prob, rlStrat, trials, rounds):
         errors.append(Plot(chips, prob, rlStrat, opt, rounds))
     print(sum(errors)/len(errors))
     
-def AverageErrorAndWins(chips, prob, rlStrat, trials, rounds):
+def AverageErrorAndWins(chips, prob, rlStrat, trials, rounds, agent=None):
     opt = Player("p2", prob, "optimal", -1, chips)
     
     errors = []
     wins = []
     for i in range(trials):
-        (error, win) = PlotBoth(chips, prob, rlStrat, opt, rounds)
+        (error, win) = PlotBoth(chips, prob, rlStrat, agent, opt, rounds)
         errors.append(error)
         wins.append(win)
     print("error: ", sum(errors)/len(errors))
     print("wins: ", sum(wins)/len(wins))
 
+
+def TwoRlAgents(chips, prob, strat1, strat2, trials, rounds):
+    
+    errors = []
+    wins = []
+    for i in range(trials):
+        (error, win) = Plot2RLs(chips, prob, strat1, strat2, rounds)
+        errors.append(error)
+        wins.append(win)
+    print("error: ", sum(errors)/len(errors))
+    print("wins: ", sum(wins)/len(wins))
   
 
 def PlotError(prob, rlStrat, rlGame, optGame):
@@ -1159,7 +1182,7 @@ def PlotError(prob, rlStrat, rlGame, optGame):
 
 
 def PlotError2(prob, rlStrat, rlGame, opt):
-    rlDicts = rlGame.dicts
+    rlDicts = rlGame.p1Dicts
     errors = []
     for i in range(len(rlDicts)):
         rDict = rlDicts[i]
@@ -1178,10 +1201,40 @@ def PlotError2(prob, rlStrat, rlGame, opt):
             meanError += abs(float(rDict[(boardStr, rlTb)]) - float(optBid))
         errors.append(meanError / len(rKeys))
     
+    saveErrorstoCSV(errors)
     plt.scatter(range(len(errors)), errors)
     # Add title and axis names
     probStr = "Probability " if prob else ""
     plt.title("TicTacToe " + probStr + rlStrat + " vs. Optimal Strategy")
+    plt.xlabel('Number of rounds trained (in 100s)')
+    plt.ylabel('Mean difference in bids made')
+    plt.show()
+    return errors[-1]
+
+
+def PlotError3(prob, strat1, strat2, rlGame):
+    p1Dicts = rlGame.p1Dicts
+    p2Dicts = rlGame.p2Dicts
+    errors = []
+    for i in range(len(p1Dicts)):
+        dict1 = p1Dicts[i]
+        dict2 = p2Dicts[i]
+        meanError = 0.0
+        keys = dict1.keys() & dict2.keys()
+        if len(keys)==0:
+            continue
+        dict1 = {key: dict1[key] for key in keys}
+        dict2 = {key: dict2[key] for key in keys}
+        (rKeys, rBids) = map(list, zip(*dict1.items()))
+        for (boardStr, rlTb) in rKeys:
+            meanError += abs(float(dict1[(boardStr, rlTb)]) - float(dict2[(boardStr, rlTb)]))
+        errors.append(meanError / len(rKeys))
+    
+    saveErrorstoCSV(errors)
+    plt.scatter(range(len(errors)), errors)
+    # Add title and axis names
+    probStr = "Probability " if prob else ""
+    plt.title("TicTacToe " + probStr + strat1 + " vs " + strat2)
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean difference in bids made')
     plt.show()
@@ -1238,20 +1291,31 @@ def PlotStrats(prob, rlStrat, rl, opt):
 def calcOptStrat(totalChips):
     opt = Player("px", False, "", -1, totalChips)
     opt.generateStrategy(totalChips)
-    fd = open('discreteRich', 'wb')
+    fd = open('TTTDiscreteRich', 'wb')
     pickle.dump(opt.nodesToDiscreteRich, fd)
     fd.close()
-    fm = open('moveBid', 'wb')
+    fm = open('TTTMoveBid', 'wb')
     pickle.dump(opt.nodesToMoveBid, fm)
     fm.close()
+    
+def testAgent(chips, prob, rlStrat):
+    AverageErrorAndWins(chips, prob, rlStrat, 1, 5000) # training
+    print("testing:")
+    p1 = Player("agent", prob, rlStrat, 1, chips, exp_rate=0)
+    p1.loadPolicy("ttt_policy_p1")
+    #print(p1.states_value)
+    AverageErrorAndWins(chips, prob, rlStrat, 1, 5000, p1)
+
 
 
 if __name__ == "__main__":
-    rlStrat = "action-value1"
+    rlStrat = "state-value1"
     chips = 8
     prob = False
     #calcOptStrat(chips)
-    AverageErrorAndWins(chips, prob, rlStrat, 5, 20000)
+    testAgent(chips, prob, rlStrat)
+    #TwoRlAgents(chips, prob, rlStrat, rlStrat, 1, 10000)
+    #AverageErrorAndWins(chips, prob, rlStrat, 1, 5000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
