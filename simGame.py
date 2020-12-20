@@ -222,6 +222,7 @@ class State(StateI):
         self.boardHash = None
         # init p1 plays first
         self.playerSymbol = 1
+        #agentChips = math.ceil(0.51953126*totalChips)
         agentChips = math.ceil(0.5*totalChips)
         self.chips = [totalChips, agentChips, totalChips-agentChips]
         self.tieBreaker = 1
@@ -263,6 +264,7 @@ class State(StateI):
         self.boardHash = None
         self.isEnd = False
         self.playerSymbol = 1
+        #agentChips = math.ceil(0.51953126*self.chips[0])
         agentChips = math.ceil(0.5*self.chips[0])
         self.chips = [self.chips[0], agentChips, self.chips[0]-agentChips]
         
@@ -342,7 +344,7 @@ class State(StateI):
 
 
 class Player(AgentI):
-    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, learn_rate=0.3, exp_rate=0.15):
+    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, learn_rate=0.4, exp_rate=0.25):
         self.name = name
         self.states = []  # record all positions taken
         self.bids = []  # record all bids taken
@@ -920,7 +922,6 @@ class Sim(GameI):
         self.p1Dicts.append(state.p1.data.copy())
         self.p2Dicts.append(state.p2.data.copy())
         self.wins.append((self.p1Win)/rounds)
-        print(self.wins)
 
     # play with human
     def play2(self, state):
@@ -1298,8 +1299,8 @@ if __name__ == "__main__":
     #Plot(chips, rlStrat, opt, optGame, 20000)
     #calcOptStrat(chips)
     #gc.disable()
-    testAgent(chips, prob, rlStrat)
-    #AverageErrorAndWins(chips, prob, rlStrat, 1, 10000)
+    #testAgent(chips, prob, rlStrat)
+    AverageErrorAndWins(chips, prob, rlStrat, 1, 10000)
     #TwoRlAgents(chips, prob, rlStrat, rlStrat, 1, 10000)
     #PlotWins(chips, prob, rlStrat, "optimal", 10, 20000)
     #b = Board([[(5, 3), (5, 4)], [(1, 0), (2, 1), (3, 2), (4, 3)]])

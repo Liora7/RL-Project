@@ -220,8 +220,8 @@ class State(StateI):
         self.boardHash = None
         # init p1 plays first
         self.playerSymbol = 1
-        #agentChips = math.ceil(0.51953126*totalChips)
-        agentChips = math.ceil(0.5*totalChips)
+        agentChips = math.ceil(0.51953126*totalChips)
+        #agentChips = math.ceil(0.5*totalChips)
         self.chips = [totalChips, agentChips, totalChips-agentChips]
         self.tieBreaker = 1
         
@@ -262,8 +262,8 @@ class State(StateI):
         self.boardHash = None
         self.isEnd = False
         self.playerSymbol = 1
-        #agentChips = math.ceil(0.51953126*self.chips[0])
-        agentChips = math.ceil(0.5*self.chips[0])
+        agentChips = math.ceil(0.51953126*self.chips[0])
+        #agentChips = math.ceil(0.5*self.chips[0])
         self.chips = [self.chips[0], agentChips, self.chips[0]-agentChips]
         
     def bid(self): 
@@ -342,7 +342,7 @@ class State(StateI):
 
 
 class Player(AgentI):
-    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, learn_rate=0.3, exp_rate=0.4):
+    def __init__(self, name, prob, biddingStrategy, symbol, totalChips, learn_rate=0.3, exp_rate=0.2):
         self.name = name
         self.states = []  # record all positions taken
         self.bids = []  # record all bids taken
@@ -426,7 +426,7 @@ class Player(AgentI):
                 if prob:
                     bidWinProb = self.getProb(state.getHash(), b, 1)
                     value *= bidWinProb
-                if value > value_max:
+                if value >= value_max:
                     value_max = value
                     bid = b
                     tb = 1
@@ -441,7 +441,7 @@ class Player(AgentI):
             if prob:
                 bidWinProb = self.getProb(state.getHash(), b, 0)
                 value *= bidWinProb
-            if value > value_max:
+            if value >= value_max:
                 value_max = value
                 bid = b
                 tb = 0
@@ -460,7 +460,7 @@ class Player(AgentI):
                 if prob:
                     bidWinProb = self.getProb(state.getHash(), b, 1)
                     value *= bidWinProb
-                if value > value_max:
+                if value >= value_max:
                     value_max = value
                     bid = b
                     tb = 1
@@ -475,7 +475,7 @@ class Player(AgentI):
             if prob:
                     bidWinProb = self.getProb(state.getHash(), b, 0)
                     value *= bidWinProb
-            if value > value_max:
+            if value >= value_max:
                 value_max = value
                 bid = b
                 tb = 0
@@ -778,14 +778,14 @@ class Player(AgentI):
         if self.biddingStrategy == "action-value1" or self.biddingStrategy == "action-value2":
             for st, b in zip(reversed(self.states), reversed(self.bids)):
                 if self.states_value.get((st, b)) is None:
-                    self.states_value[(st, b)] = 0.5
+                    self.states_value[(st, b)] = 0
                 self.states_value[(st, b)] += self.lr * (self.decay_gamma * reward - self.states_value[(st, b)])
                 reward = self.states_value[st, b]
                 #elif not self.biddingStrategy == "TD":
         elif not self.biddingStrategy == "pureTD":
             for st in reversed(self.states):
                 if self.states_value.get(st) is None:
-                    self.states_value[st] = 0.5
+                    self.states_value[st] = 0
                 self.states_value[st] += self.lr * (self.decay_gamma * reward - self.states_value[st])
                 reward = self.states_value[st]
 
@@ -1309,13 +1309,13 @@ def testAgent(chips, prob, rlStrat):
 
 
 if __name__ == "__main__":
-    rlStrat = "state-value1"
+    rlStrat = "action-value1"
     chips = 8
     prob = False
     #calcOptStrat(chips)
-    testAgent(chips, prob, rlStrat)
+    #testAgent(chips, prob, rlStrat)
     #TwoRlAgents(chips, prob, rlStrat, rlStrat, 1, 10000)
-    #AverageErrorAndWins(chips, prob, rlStrat, 1, 5000)
+    AverageErrorAndWins(chips, prob, rlStrat, 1, 10000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
