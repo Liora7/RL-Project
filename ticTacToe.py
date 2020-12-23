@@ -240,7 +240,7 @@ class State(StateI):
     # get unique hash of current board state
     def getHash(self):
         self.boardHash = self.board.getHash()
-        return str(self.boardHash) + str(self.chips[1]) + str(self.chips[2]) + str(self.tieBreaker)
+        return str(self.boardHash) + str(self.chips[1]) + str(self.chips[2]) + str(self.tieBreaker) + str(self.tieBreaker)
 
     # only when game ends
     def giveReward(self):
@@ -267,8 +267,8 @@ class State(StateI):
         self.chips = [self.chips[0], agentChips, self.chips[0]-agentChips]
         
     def bid(self): 
-        p1Bid = min(self.p1.getBid(self, 1, 2, self.chips[1]), self.chips[1])
-        p2Bid = min(self.p2.getBid(self, 2, 1, self.chips[2]), self.chips[2])
+        p1Bid = self.p1.getBid(self, 1, 2, self.chips[1])
+        p2Bid = self.p2.getBid(self, 2, 1, self.chips[2])
         useTb = 0
         if p1Bid % 1 == 0.25:
             if self.tieBreaker == 1:
@@ -288,6 +288,8 @@ class State(StateI):
                 if p2Bid < self.chips[2]:
                     p2Bid = math.ceil(p2Bid)
                     self.p2.addBid(p2Bid)
+        p1Bid = min(p1Bid, self.chips[1])
+        p2Bid = min(p2Bid, self.chips[2])
         self.chips[1] = self.chips[1] - p1Bid  + p2Bid
         self.chips[2] = self.chips[2] - p2Bid + p1Bid
         if (p1Bid > p2Bid):
@@ -404,11 +406,15 @@ class Player(AgentI):
                 tb = 1
         idx = np.random.choice(len(positions))
         action = positions[idx]
-        return (random.randint(0, availableTokens) + 0.25*tb, action)
+        return (random.randint(0, availableTokens) + 0.25*tb, tb, action)
     
     def getProb(self, stateHash, b, tb):
-        (bidsWon, bidsNum) = self.stateProbs.get((stateHash, b, tb), (0,1))
-        return (bidsWon + 1) / (bidsNum + 2)
+        if self.prob == 'simple':
+            (bidsWon, bidsNum) = self.stateProbs.get((stateHash, b, tb), (0,1))
+            return (bidsWon) / (bidsNum)
+        elif self.prob == 'laplace':
+            (bidsWon, bidsNum) = self.stateProbs.get((stateHash, b, tb), (0,0))
+            return (bidsWon + 1) / (bidsNum + 2)
     
     def addStateBidProb(self, state, bid, win, tb):
         (won, num) = self.stateProbs.get((state, bid, tb), (0,0))
@@ -419,11 +425,12 @@ class Player(AgentI):
             if (tieBreaker==symbol):  #have tiebreaker
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
+                next_state.playerSymbol = symbol
                 if not pos is None:
                     next_state.board.updateState(pos, symbol)
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash), 0)
-                if prob:
+                if len(prob) > 0:
                     bidWinProb = self.getProb(state.getHash(), b, 1)
                     value *= bidWinProb
                 if value >= value_max:
@@ -434,11 +441,12 @@ class Player(AgentI):
             next_state = state.copy()
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
+            next_state.playerSymbol = symbol
             if not pos is None:
                 next_state.board.updateState(pos, symbol)
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash), 0)
-            if prob:
+            if len(prob) > 0:
                 bidWinProb = self.getProb(state.getHash(), b, 0)
                 value *= bidWinProb
             if value >= value_max:
@@ -453,11 +461,12 @@ class Player(AgentI):
             if (tieBreaker==symbol):  #have tiebreaker
                 next_state = state.copy()
                 next_state.tieBreaker *= -1
+                next_state.playerSymbol = symbol
                 if not pos is None:
                     next_state.board.updateState(pos, symbol)
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get((next_stateHash, b), 0)
-                if prob:
+                if len(prob) > 0:
                     bidWinProb = self.getProb(state.getHash(), b, 1)
                     value *= bidWinProb
                 if value >= value_max:
@@ -468,11 +477,12 @@ class Player(AgentI):
             next_state = state.copy()
             next_state.chips[pId] = max(next_state.chips[pId] - 1, 0)
             next_state.chips[oId] = min(next_state.chips[oId] + 1, next_state.chips[0])
+            next_state.playerSymbol = symbol
             if not pos is None:
                 next_state.board.updateState(pos, symbol)
             next_stateHash = next_state.getHash()
             value = self.states_value.get((next_stateHash, b), 0)
-            if prob:
+            if len(prob) > 0:
                     bidWinProb = self.getProb(state.getHash(), b, 0)
                     value *= bidWinProb
             if value >= value_max:
@@ -484,15 +494,19 @@ class Player(AgentI):
     
     def getBid(self, state, pId, oId, availableTokens):
         self.next_action = None
+        positions = state.board.availableActions()
         prob = self.prob
         if (self.biddingStrategy == "random"):
             # do random bid
-            return self.randomBid(availableTokens, state.tieBreaker, self.symbol)
+            (bid, tb, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+            self.next_action = action
+            self.data[(state.board.standardString(self.symbol), tb)] = bid
+            return bid
         elif (self.biddingStrategy == "state-value1" or self.biddingStrategy == "TD" or self.biddingStrategy == "pureTD"):
-            positions = state.board.availableActions()
             if np.random.uniform(0, 1) <= self.exp_rate:
                 # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                (bid, tb, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                self.data[(state.board.standardString(self.symbol), tb)] = bid
                 self.next_action = action
                 return bid
             else:
@@ -507,10 +521,10 @@ class Player(AgentI):
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
         elif (self.biddingStrategy == "state-value2"):
-            positions = state.board.availableActions()
             if np.random.uniform(0, 1) <= self.exp_rate:
                 # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                (bid, tb, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                self.data[(state.board.standardString(self.symbol), tb)] = bid
                 self.next_action = action
                 return bid
             else:
@@ -523,10 +537,10 @@ class Player(AgentI):
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
         elif (self.biddingStrategy == "action-value1"):
-            positions = state.board.availableActions()
             if np.random.uniform(0, 1) <= self.exp_rate:
                 # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                (bid, tb, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                self.data[(state.board.standardString(self.symbol), tb)] = bid
                 self.next_action = action
                 return bid
             else:
@@ -541,10 +555,10 @@ class Player(AgentI):
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return (bid + tb*0.25)
         elif (self.biddingStrategy == "action-value2"):
-            positions = state.board.availableActions()
             if np.random.uniform(0, 1) <= self.exp_rate:
                 # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                (bid, tb, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                self.data[(state.board.standardString(self.symbol), tb)] = bid
                 self.next_action = action
                 return bid
             else:
@@ -557,7 +571,7 @@ class Player(AgentI):
                 for b in range(int(availableTokens) + 1):
                     if (state.tieBreaker==self.symbol):  #have tiebreaker
                         value = self.states_value.get((stateHash), 0)
-                        if prob:
+                        if len(prob) > 0:
                             bidWinProb = self.getProb(state.getHash(), b, 1)
                             value *= bidWinProb
                         if value >= value_max:
@@ -565,7 +579,7 @@ class Player(AgentI):
                             bid = b
                             tb = 1
                     value = self.states_value.get((stateHash), 0)
-                    if prob:
+                    if len(prob) > 0:
                         bidWinProb = self.getProb(state.getHash(), b, 0)
                         value *= bidWinProb
                     if value >= value_max:
@@ -584,10 +598,10 @@ class Player(AgentI):
             self.data[(state.board.standardString(self.symbol), tb)] = bid
             return round(bid)
         elif (self.biddingStrategy == "optimalExp"):
-            positions = state.board.availableActions()
             if np.random.uniform(0, 1) <= self.exp_rate:
                 # do random bid
-                (bid, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                (bid, tb, action) = self.randomBidAndAction(availableTokens, state.tieBreaker, self.symbol, positions)
+                self.data[(state.board.standardString(self.symbol), tb)] = bid
                 self.next_action = action
                 return bid
             else:
@@ -600,7 +614,7 @@ class Player(AgentI):
                     tb = 1
                 self.data[(state.board.standardString(self.symbol), tb)] = bid
                 return round(bid)
-                    
+     
 
     def generateStrategy(self, totalChips):
 
@@ -731,11 +745,11 @@ class Player(AgentI):
             value_max = -999
             for p in positions:
                 next_state = current_state.copy()
-                next_state.playerSymbol = self.symbol
+                #next_state.playerSymbol = self.symbol
                 next_state.board.board[p] = self.symbol
                 next_stateHash = next_state.getHash()
                 value = self.states_value.get(next_stateHash, 0)
-                if value >= value_max:
+                if value > value_max:
                     value_max = value
                     action = p
             return action
@@ -778,14 +792,14 @@ class Player(AgentI):
         if self.biddingStrategy == "action-value1" or self.biddingStrategy == "action-value2":
             for st, b in zip(reversed(self.states), reversed(self.bids)):
                 if self.states_value.get((st, b)) is None:
-                    self.states_value[(st, b)] = 0
+                    self.states_value[(st, b)] = 0.5
                 self.states_value[(st, b)] += self.lr * (self.decay_gamma * reward - self.states_value[(st, b)])
                 reward = self.states_value[st, b]
                 #elif not self.biddingStrategy == "TD":
         elif not self.biddingStrategy == "pureTD":
             for st in reversed(self.states):
                 if self.states_value.get(st) is None:
-                    self.states_value[st] = 0
+                    self.states_value[st] = 0.5
                 self.states_value[st] += self.lr * (self.decay_gamma * reward - self.states_value[st])
                 reward = self.states_value[st]
 
@@ -970,7 +984,7 @@ def StateValue():
     # training
     biddingStrategy = "state-value1"
     chips = 8
-    prob = False
+    prob = ""
 
     p1 = Player("p1", prob, biddingStrategy, 1, chips)
     p2 = Player("p2", prob, biddingStrategy, -1, chips)
@@ -993,7 +1007,7 @@ def Optimal():
     # training
     biddingStrategy = "optimal"
     chips = 8
-    prob = False
+    prob = ""
 
     game = BiddingTicTacToe()
     
@@ -1023,7 +1037,7 @@ def PlotBoth(chips, prob, rlStrat, rl, opt, rounds):
     print("training...")
     rlGame.play(rlSt, rounds)
     #PlotStrats(prob, rlStrat, rl, opt)
-    saveStateValstoCSV(rl)
+    saveStateValstoCSV(prob, rlStrat, rl)
     rl.savePolicy()
     return (PlotError2(prob, rlStrat, rlGame, opt), PlotWin(prob, rlStrat, "optimal", rlGame))
 
@@ -1037,11 +1051,11 @@ def Plot2RLs(chips, prob, strat1, strat2, rounds):
     print("training...")
     rlGame.play(rlSt, rounds)
     #PlotStrats(prob, rlStrat, rl, opt
-    saveStateValstoCSV(p1)
+    saveStateValstoCSV(prob, strat1, p1)
     return (PlotError3(prob, strat1, strat2, rlGame), PlotWin(prob, strat1, strat2, rlGame))
 
-def saveStateValstoCSV(agent):
-    with open('TTTPolicy.csv', 'w', newline='') as file:
+def saveStateValstoCSV(prob, strat, agent):
+    with open(prob + "_" + strat + '_TTTPolicy.csv', 'w', newline='') as file:
         fieldnames = ['board_hash', 'value']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
     
@@ -1049,13 +1063,13 @@ def saveStateValstoCSV(agent):
         for key in agent.states_value.keys():
             file.write("%s,%s\n"%(key,agent.states_value[key]))
             
-def saveErrorstoCSV(errors):
-    with open('TTTErrors.csv', 'w', newline='') as file:
+def saveErrorstoCSV(prob, strat, errors):
+    with open(prob + "_" + strat + '_TTTErrors.csv', 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(errors)
         
-def saveWinstoCSV(wins):
-    with open('TTTWins.csv', 'w', newline='') as file:
+def saveWinstoCSV(prob, strat, wins):
+    with open(prob + "_" + strat + '_TTTWins.csv', 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(wins)
       
@@ -1081,9 +1095,9 @@ def PlotWin(prob, strat1, strat2, rlGame):
     wins = rlGame.wins
     
     plt.scatter(range(len(wins)), wins)
-    saveWinstoCSV(wins)
+    saveWinstoCSV(prob, strat1, wins)
     # Add title and axis names
-    probStr = "Probability " if prob else ""
+    probStr = (prob + " ") if len(prob)>0 else ""
     plt.title("TicTacToe " + probStr + strat1 + " vs " + strat2)
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean winning rate')
@@ -1173,7 +1187,7 @@ def PlotError(prob, rlStrat, rlGame, optGame):
     
     plt.scatter(range(len(errors)), errors)
     # Add title and axis names
-    probStr = "Probability " if prob else ""
+    probStr = (prob + " ") if len(prob)>0 else ""
     plt.title("TicTacToe " + probStr + rlStrat + " vs. Optimal Strategy")
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean difference in bids made')
@@ -1201,10 +1215,10 @@ def PlotError2(prob, rlStrat, rlGame, opt):
             meanError += abs(float(rDict[(boardStr, rlTb)]) - float(optBid))
         errors.append(meanError / len(rKeys))
     
-    saveErrorstoCSV(errors)
+    saveErrorstoCSV(prob, rlStrat, errors)
     plt.scatter(range(len(errors)), errors)
     # Add title and axis names
-    probStr = "Probability " if prob else ""
+    probStr = (prob + " ") if len(prob)>0 else ""
     plt.title("TicTacToe " + probStr + rlStrat + " vs. Optimal Strategy")
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean difference in bids made')
@@ -1230,10 +1244,10 @@ def PlotError3(prob, strat1, strat2, rlGame):
             meanError += abs(float(dict1[(boardStr, rlTb)]) - float(dict2[(boardStr, rlTb)]))
         errors.append(meanError / len(rKeys))
     
-    saveErrorstoCSV(errors)
+    saveErrorstoCSV(prob, strat1, errors)
     plt.scatter(range(len(errors)), errors)
     # Add title and axis names
-    probStr = "Probability " if prob else ""
+    probStr = (prob + " ") if len(prob)>0 else ""
     plt.title("TicTacToe " + probStr + strat1 + " vs " + strat2)
     plt.xlabel('Number of rounds trained (in 100s)')
     plt.ylabel('Mean difference in bids made')
@@ -1277,7 +1291,7 @@ def PlotStrats(prob, rlStrat, rl, opt):
     plt.scatter(range(len(tbs0)), np.array(optBids0)-np.array(rlBids0), c='r')
     plt.scatter(range(len(tbs1)), np.array(optBids1)-np.array(rlBids1), c='b')
     
-    probStr = "Probability " if prob else ""
+    probStr = (prob + " ") if len(prob)>0 else ""
     plt.title(probStr + rlStrat + " vs. Optimal Strategy")
     plt.xlabel('States')
     plt.ylabel('Bids made')
@@ -1309,13 +1323,13 @@ def testAgent(chips, prob, rlStrat):
 
 
 if __name__ == "__main__":
-    rlStrat = "action-value1"
+    rlStrat = "TD"
     chips = 8
-    prob = False
+    prob = ""
     #calcOptStrat(chips)
     #testAgent(chips, prob, rlStrat)
-    #TwoRlAgents(chips, prob, rlStrat, rlStrat, 1, 10000)
-    AverageErrorAndWins(chips, prob, rlStrat, 1, 10000)
+    #TwoRlAgents(chips, prob, rlStrat, rlStrat, 1, 20000)
+    AverageErrorAndWins(chips, prob, rlStrat, 1, 20000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = BiddingTicTacToe()
     #Plot(chips, rlStrat, opt, optGame, 20000)
