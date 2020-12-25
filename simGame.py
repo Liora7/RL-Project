@@ -793,7 +793,7 @@ class Player(AgentI):
                         self.states_value[next_st_hash] = 0
                     else:
                         self.states_value[next_st_hash] = 0.5
-            self.states_value[st_hash] += self.lr * (self.states_value[next_st_hash] - self.states_value[st_hash])
+            self.states_value[st_hash] += self.lr * (self.decay_gamma * self.states_value[next_st_hash] - self.states_value[st_hash])
         
 
     # at the end of game, backpropagate and update state value
@@ -1312,7 +1312,7 @@ def testAgent(chips, prob, rlStrat):
 if __name__ == "__main__":
     rlStrat = "TD"
     chips = 8
-    prob = "laplace"
+    prob = ""
     #AverageError(chips, prob, rlStrat, 10, 20000)
     #opt = Player("p2", "TD", 1, chips)
     #optGame = Sim()
@@ -1320,7 +1320,7 @@ if __name__ == "__main__":
     #calcOptStrat(chips)
     #gc.disable()
     #testAgent(chips, prob, rlStrat)
-    AverageErrorAndWins(chips, prob, rlStrat, 5, 20000)
+    AverageErrorAndWins(chips, prob, rlStrat, 1, 20000)
     #TwoRlAgents(chips, prob, rlStrat, "random", 1, 10000)
     #PlotWins(chips, prob, rlStrat, "optimal", 10, 20000)
     #b = Board([[(5, 3), (5, 4)], [(1, 0), (2, 1), (3, 2), (4, 3)]])

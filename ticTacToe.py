@@ -784,7 +784,7 @@ class Player(AgentI):
                         self.states_value[next_st_hash] = 0
                     else:
                         self.states_value[next_st_hash] = 0.5
-            self.states_value[st_hash] += self.lr * (self.states_value[next_st_hash] - self.states_value[st_hash])
+            self.states_value[st_hash] += self.lr * (self.decay_gamma * self.states_value[next_st_hash] - self.states_value[st_hash])
         
 
     # at the end of game, backpropagate and update state value
